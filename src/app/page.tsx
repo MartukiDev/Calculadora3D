@@ -1,5 +1,12 @@
 import { redirect } from "next/navigation";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { createClient } from "@/lib/supabase/server";
+import { CtaSection } from "@/components/landing/CtaSection";
+import { FeatureGrid } from "@/components/landing/FeatureGrid";
+import { Hero } from "@/components/landing/Hero";
+import { HowItWorks } from "@/components/landing/HowItWorks";
+import { LandingFooter } from "@/components/landing/LandingFooter";
+import { LandingHeader } from "@/components/landing/LandingHeader";
 
 export default async function Home({
   searchParams,
@@ -18,7 +25,27 @@ export default async function Home({
     redirect(`${ruta}?${query}`);
   }
 
-  if (isSupabaseConfigured) redirect("/dashboard");
+  if (isSupabaseConfigured) {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) redirect("/dashboard");
+
+    return (
+      <div className="flex flex-1 flex-col">
+        <LandingHeader />
+        <main className="flex-1">
+          <Hero />
+          <HowItWorks />
+          <FeatureGrid />
+          <CtaSection />
+        </main>
+        <LandingFooter />
+      </div>
+    );
+  }
 
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-12">

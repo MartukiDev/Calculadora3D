@@ -33,17 +33,12 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { pathname, searchParams } = request.nextUrl;
+  const { pathname } = request.nextUrl;
 
-  // La raíz con un código de Supabase adjunto es un enlace de email que cayó al
-  // Site URL: tiene que llegar a la página para reencaminarse, no a /login.
-  const traeCodigoDeAuth =
-    pathname === "/" &&
-    (searchParams.has("code") ||
-      (searchParams.has("token_hash") && searchParams.has("type")));
-
+  // La raíz es la landing pública (y también donde caen los enlaces de email
+  // de Supabase con un código adjunto para reencaminarse), nunca /login.
   const isPublic =
-    traeCodigoDeAuth ||
+    pathname === "/" ||
     PUBLIC_ROUTES.some(
       (route) => pathname === route || pathname.startsWith(`${route}/`),
     );

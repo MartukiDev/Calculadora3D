@@ -6,6 +6,8 @@ type Props = {
   desperdicioPct: number;
   margenPct: number;
   ivaPct: number;
+  /** Anima la entrada capa por capa (uso en landing / demos); no aplica en el flujo real del formulario. */
+  animateIn?: boolean;
 };
 
 const LAYER_BLUR = ["backdrop-blur-[2px]", "backdrop-blur-[5px]", "backdrop-blur-[9px]", "backdrop-blur-[14px]"];
@@ -19,6 +21,7 @@ export function CostLayerStack({
   desperdicioPct,
   margenPct,
   ivaPct,
+  animateIn = false,
 }: Props) {
   const layers = [
     { label: "Filamento", value: breakdown.costoFilamento },
@@ -33,8 +36,12 @@ export function CostLayerStack({
         {layers.map((layer, i) => (
           <div
             key={layer.label}
-            className={`relative flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 ${LAYER_BLUR[i]}`}
-            style={{ marginLeft: `${i * 6}px`, zIndex: i + 1 }}
+            className={`relative flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 ${LAYER_BLUR[i]} ${animateIn ? "animate-layer-rise" : ""}`}
+            style={{
+              marginLeft: `${i * 6}px`,
+              zIndex: i + 1,
+              animationDelay: animateIn ? `${i * 110}ms` : undefined,
+            }}
           >
             <span className="text-sm text-white/75">{layer.label}</span>
             <span className="num text-sm text-white/90">
@@ -56,7 +63,10 @@ export function CostLayerStack({
       </div>
 
       {/* Capa superior: más opaca, con el acento primario */}
-      <div className="rounded-2xl border border-accent/30 bg-accent-soft p-4 backdrop-blur-xl">
+      <div
+        className={`rounded-2xl border border-accent/30 bg-accent-soft p-4 backdrop-blur-xl ${animateIn ? "animate-layer-rise" : ""}`}
+        style={{ animationDelay: animateIn ? `${layers.length * 110}ms` : undefined }}
+      >
         <Row
           label="Costo total"
           value={formatCLP(breakdown.costoTotal)}
