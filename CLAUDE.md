@@ -1,1 +1,149 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 @AGENTS.md
+
+## Qué es
+
+Calculadora de costos de impresión 3D: multi-usuario, multi-impresora, con
+inventario de filamentos y descuento de stock al lanzar una impresión.
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind v4 · Supabase.
+
+El documento funcional y de diseño original está en
+`docs/prompt-calculadora-3d.md`; el README cubre la puesta en marcha
+(Supabase, Redirect URLs, SMTP con Resend).
+
+## Comandos
+
+```bash
+pnpm dev      # desarrollo (Turbopack)
+pnpm build    # build de producción — corre TypeScript, es la verificación más completa
+pnpm lint     # eslint
+
+pnpm exec tsc --noEmit    # typecheck solo
+```
+
+**No hay suite de tests.** La verificación es `tsc` + `eslint` + `pnpm build`, y
+recorrer el flujo en el navegador.
+
+El esquema **no se aplica con ninguna herramienta de migraciones**: hay que pegar
+`supabase/schema.sql` en el SQL Editor de Supabase. Por eso ese archivo tiene que
+quedar siempre **idempotente y re-ejecutable** (`create ... if not exists`,
+`alter ... if exists`, bloques `do $$` que chequean `information_schema`). Al
+cambiar el esquema, edita ese archivo, no escribas una migración suelta.
+
+## Arquitectura
+
+### Supabase es la única fuente de verdad
+
+`localStorage` es solo caché de lectura y borrador en progreso (`src/lib/cache.ts`):
+`settings_cache:`, `filaments_cache:`, `printers_cache:`, `calc_draft:`, todos por
+`userId`. **Solo se escribe con lo que Supabase ya confirmó**, nunca con el estado
+del formulario. Se usa como fallback cuando la carga falla, mostrando `CacheBadge`.
+
+Cabo suelto conocido: `clearAllCache` no está conectado a nada. `logout` es una
+server action y no puede tocar `localStorage`, así que la caché sobrevive al cierre
+de sesión; hay que llamarla desde el cliente si esto llega a importar.
+
+### Tres clientes de Supabase
+
+`src/lib/supabase/` tiene `server.ts` (Server Components y actions), `client.ts`
+(navegador) y `middleware.ts` (refresco de sesión). `env.ts` expone
+`isSupabaseConfigured`: sin credenciales la app **no revienta**, `/` muestra un panel
+de configuración.
+
+### `src/proxy.ts` es el middleware
+
+Next 16 lo renombró de `middleware` a `proxy`. Ahí vive la protección de rutas:
+todo lo que no sea `/`, `/login`, `/signup`, `/reset-password` o `/auth/*` exige
+sesión. `/` es **pública** (landing) y solo redirige a `/dashboard` si hay usuario.
+
+Todo `/dashboard/*` es `force-dynamic` (declarado en su layout): depende de la sesión
+y de datos por usuario, nunca se prerenderiza.
+
+Las constantes de dominio (`MAX_FILAMENTOS = 4`, `STOCK_BAJO_GRAMOS = 50`) viven en
+`src/lib/types.ts`, junto a los tipos de fila. No las hardcodees.
+
+### Dónde vive cada costo
+
+Repartición deliberada, no accidental:
+
+- **`user_settings`** — solo `tarifa_luz_clp_kwh` e `iva_pct`: lo que no depende de
+  la máquina.
+- **`printers`** — `consumo_w`, `tarifa_mano_obra_clp_hora`,
+  `costo_depreciacion_clp_hora`, `desperdicio_pct_default`: distinto en cada máquina.
+
+Al elegir impresora en la calculadora, esos cuatro valores se precargan y siguen
+siendo editables **solo para ese cálculo**; cambiar de impresora los vuelve a
+precargar. La fórmula está en `src/lib/calc.ts` y no depende de dónde vengan los
+números.
+
+### El cliente previsualiza, el servidor recalcula
+
+`PrintCalculator` calcula en tiempo real para mostrar el desglose, pero
+`savePrint` (`src/app/dashboard/actions.ts`) **vuelve a consultar los precios reales
+de los filamentos y recalcula con `calcularCostos` antes de guardar**. Nunca confíes
+en los montos que llegan del formulario.
+
+Los costos quedan **congelados** en la fila de `prints` — no se re-derivan al leer.
+Por eso al editar, `draftFromPrint` reconstruye las tarifas por hora dividiendo el
+monto guardado por las horas.
+
+### Operaciones atómicas vía RPC
+
+- **`lanzar_impresion`** — único camino que toca el stock. Descuenta los gramos de
+  cada filamento y marca `lanzada` en una transacción. Es irreversible: pide
+  confirmación explícita y los cálculos lanzados ya no se editan ni se borran.
+- **`set_impresora_default`** — un índice único parcial impide dos predeterminadas
+  por usuario, así que desmarcar y marcar tienen que ir en la misma transacción.
+
+### RLS
+
+Toda tabla tiene una política `auth.uid() = user_id`, así que un `select` sin filtro
+ya devuelve solo lo del usuario. Aun así las escrituras encadenan `.eq("user_id",
+user.id)` como defensa en profundidad — mantén ese patrón.
+
+### Enlaces de email
+
+Los `redirectTo` **no llevan query string** a propósito: Supabase compara la URL
+completa contra su lista blanca y un `?next=` de más hace que la descarte y caiga al
+Site URL. Por eso el destino va fijo por ruta (`/auth/callback`, `/auth/recovery`).
+`getSiteUrl()` (`src/lib/site-url.ts`) prioriza `NEXT_PUBLIC_SITE_URL` sobre las
+cabeceras, que detrás de un proxy apuntan al host interno. Si un código igual cae en
+`/`, `src/app/page.tsx` lo reencamina en vez de perderlo.
+
+## Convenciones
+
+**Todo en español**: UI, comentarios, mensajes de error, commits. Mantenlo.
+
+Los comentarios explican **por qué**, no qué hace el código. Si algo parece raro
+(un `nullable` a propósito, un índice parcial, un orden de operaciones), el
+comentario justifica la decisión. Sigue ese estilo.
+
+**Server actions** devuelven `ActionState` (`{ error?, message?, ok? }`) y se
+consumen con `useActionState`. `SubmitButton` (`src/components/ui.tsx`) ya maneja el
+estado pendiente con `useFormStatus` — no reinventes el disabled.
+
+### Diseño — glassmorphism sobre grafito
+
+Los tokens viven en el bloque `@theme` de `src/app/globals.css`, no en un
+`tailwind.config`. Usa las clases de componente ya definidas en vez de repetir
+utilidades:
+
+- `.glass-panel` — paneles con blur.
+- `.glass-row` — variante **sin** `backdrop-filter` para listas largas: un blur por
+  fila mata el scroll en mobile.
+- `.num` — obligatoria en todo monto o cifra (JetBrains Mono + `tabular-nums`); los
+  números nunca van con la fuente de UI.
+- `.field-input` / `.field-input-num` / `.btn-primary` / `.btn-ghost` / `.btn-danger` / `.badge`.
+
+Acentos: `accent` (naranja, hotend) y `accent-2` (teal, filamento frío). Sobre vidrio,
+el texto no baja de `text-white/70`.
+
+Elementos firma que conviene reutilizar antes de crear otra cosa: `CostLayerStack`
+(el desglose como capas apiladas con blur creciente, imitando la impresión capa por
+capa) y `FilamentChip` (chip tintado con el `color_hex` real del material). Las
+impresoras usan el mismo lenguaje visual con su propio `color_hex`.
+
+Respeta `prefers-reduced-motion` — ya hay un override global en `globals.css`.

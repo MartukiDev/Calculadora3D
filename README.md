@@ -1,8 +1,9 @@
 # Calculadora de Costos de Impresión 3D
 
-App web personal para calcular el costo real de cada impresión 3D, gestionar el
-inventario de filamentos (hasta 4 por impresión, multi-color) y descontar stock
-automáticamente al lanzar una impresión.
+App web personal para calcular el costo real de cada impresión 3D, administrar
+varias impresoras con sus propios costos, gestionar el inventario de filamentos
+(hasta 4 por impresión, multi-color) y descontar stock automáticamente al lanzar
+una impresión.
 
 **Stack:** Next.js 16 (App Router) · TypeScript · Tailwind CSS v4 · Supabase
 (Auth + Postgres + RLS). El detalle funcional y de diseño está en
@@ -30,10 +31,17 @@ RPC `security definer`.
 
 ### 2. Ejecutar el esquema
 
-En el **SQL Editor** de Supabase, corre [`supabase/schema.sql`](supabase/schema.sql)
-una vez. Crea las tablas (`user_settings`, `filaments`, `prints`), las políticas
-RLS de aislamiento por usuario, el trigger que crea la configuración al
-registrarse y la función `lanzar_impresion`.
+En el **SQL Editor** de Supabase, corre [`supabase/schema.sql`](supabase/schema.sql).
+Crea las tablas (`user_settings`, `printers`, `filaments`, `prints`), las políticas
+RLS de aislamiento por usuario, el trigger que al registrarse deja lista la
+configuración y una primera impresora, y las funciones `lanzar_impresion` y
+`set_impresora_default`.
+
+El archivo es **idempotente**: se puede volver a correr sin romper nada, y así se
+aplican los cambios de esquema (no hay herramienta de migraciones). Si vienes de
+una versión anterior a multi-impresora, esa misma corrida migra tus datos: crea una
+impresora "Mi impresora" con los costos que tenías en `user_settings`, le asigna tus
+cálculos previos y recién entonces borra las columnas viejas.
 
 ### 3. Auth y enlaces por email
 
@@ -100,9 +108,14 @@ de esto toca el código de la app: es configuración de dashboard.
 ## Cómo funciona
 
 **Fuente de verdad: Supabase.** `localStorage` es solo caché de lectura
-(`settings_cache:{userId}`, `filaments_cache:{userId}`) y autoguardado del
-formulario en progreso (`calc_draft:{userId}`), que se limpia al confirmar el
-guardado.
+(`settings_cache:{userId}`, `printers_cache:{userId}`, `filaments_cache:{userId}`)
+y autoguardado del formulario en progreso (`calc_draft:{userId}`), que se limpia al
+confirmar el guardado.
+
+**Los costos se reparten según de qué dependan.** La tarifa de luz y el IVA son del
+usuario y viven en `user_settings`. El consumo en watts, la mano de obra, la
+depreciación por hora y el desperdicio default son de cada máquina y viven en
+`printers`: una Ender y una X1C no cuestan lo mismo por hora.
 
 **Costeo** (`src/lib/calc.ts`):
 
@@ -117,9 +130,19 @@ precio_neto = costo_total × (1 + margen_pct / 100)
 precio_final = precio_neto × (1 + iva_pct / 100)
 ```
 
-La configuración global precarga cada cálculo, pero es editable por impresión
-sin tocar el default. El cliente calcula en tiempo real solo para previsualizar:
-el servidor **recalcula** con los precios reales antes de guardar.
+Al elegir una impresora en la calculadora, sus cuatro valores se precargan y
+quedan editables **solo para ese cálculo**, sin tocar el default; cambiar de
+impresora los vuelve a precargar. Cada cálculo guarda con qué máquina se hizo, así
+que el historial se puede filtrar por impresora.
+
+El cliente calcula en tiempo real solo para previsualizar: el servidor **recalcula**
+con los precios reales antes de guardar.
+
+**Las impresoras se archivan, no se borran.** Una archivada desaparece del selector
+pero sus cálculos siguen mostrándola. Siempre hay una marcada como predeterminada
+—la que se preselecciona al calcular— y por eso no se puede archivar sin antes
+pasarle ese rol a otra. Eliminarlas de verdad también se puede: los cálculos
+conservan sus costos y quedan sin impresora asociada.
 
 **Lanzar una impresión** llama al RPC `lanzar_impresion`, que en una sola
 transacción descuenta los gramos de cada filamento y cambia el estado a
@@ -131,17 +154,23 @@ los cálculos lanzados ya no se pueden editar.
 ```
 src/
   app/
+    page.tsx         landing pública (y rescate de enlaces de email)
     (auth)/          login · signup · reset-password · actualizar-password
     auth/            server actions + callback de los enlaces por email
     dashboard/
-      configuracion/ costos base del usuario
+      configuracion/ tarifa de luz e IVA
+      impresoras/    CRUD del parque de máquinas
       filamentos/    CRUD de inventario
       calculos/      calculadora, historial y detalle
   components/        GlassPanel · CostLayerStack · FilamentChip · ui
+    landing/         secciones de la portada
   lib/               calc · format · cache · types · supabase/
   proxy.ts           refresco de sesión y protección de rutas
 supabase/schema.sql  tablas, RLS, trigger y RPC
 ```
+
+`proxy.ts` es el middleware: Next 16 lo renombró. La raíz es pública; todo
+`/dashboard/*` exige sesión.
 
 ## Scripts
 
