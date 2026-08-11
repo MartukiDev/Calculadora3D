@@ -50,6 +50,39 @@ En el hosting, define además `NEXT_PUBLIC_SITE_URL` con el dominio público. La
 cabeceras `host`/`origin` pueden apuntar al host interno detrás del proxy, así
 que esa variable es la que manda al construir los enlaces.
 
+### 4. SMTP con Resend
+
+El servicio de email integrado de Supabase permite **2 correos por hora** en todo
+el proyecto y no es apto para producción: basta probar dos veces "olvidé mi
+contraseña" para toparse con `email rate limit exceeded`. La solución es SMTP
+propio.
+
+**En Resend:**
+
+1. **Domains → Add Domain**, y agrega en tu DNS los registros que te entrega
+   (DKIM y SPF). Sin dominio verificado solo puedes enviar desde
+   `onboarding@resend.dev` y únicamente a tu propio correo — sirve para probar,
+   no para usuarios reales.
+2. **API Keys → Create API Key** con permiso de envío. Guarda el valor `re_...`:
+   se muestra una sola vez.
+
+**En Supabase → Authentication → SMTP Settings**, activa *Enable Custom SMTP*:
+
+| Campo | Valor |
+|---|---|
+| Host | `smtp.resend.com` |
+| Port | `465` (SSL implícito) o `587` (STARTTLS) |
+| Username | `resend` |
+| Password | tu API key de Resend (`re_...`) |
+| Sender email | una dirección de tu dominio verificado, ej. `no-reply@tudominio.cl` |
+| Sender name | `Calculadora 3D` |
+
+**Después de guardar**, ve a **Authentication → Rate Limits** y sube el límite de
+correos por hora: el tope de 2/hora existe solo por el servicio compartido.
+
+El plan gratuito de Resend da 3.000 correos al mes con tope de 100 diarios. Nada
+de esto toca el código de la app: es configuración de dashboard.
+
 ## Cómo funciona
 
 **Fuente de verdad: Supabase.** `localStorage` es solo caché de lectura
