@@ -1,0 +1,3 @@
+# unrs-resolver es el resolver nativo de eslint-config-next: necesita su build script.
+allowBuilds:
+  unrs-resolver: true
