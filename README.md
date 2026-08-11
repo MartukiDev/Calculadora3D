@@ -43,8 +43,22 @@ En **Authentication → URL Configuration** de Supabase:
   destino al que Supabase cae cuando el `redirectTo` que pide la app no está
   autorizado — si queda en `http://localhost:3000`, los correos de recuperación
   apuntarán a localhost.
-- **Redirect URLs**: agrega tanto `http://localhost:3000/auth/callback` como
-  `https://tu-app.vercel.app/auth/callback`.
+- **Redirect URLs**: lo más simple es autorizar ambos orígenes con comodín, así
+  no hay que enumerar cada ruta:
+
+  ```
+  http://localhost:3000/**
+  https://tu-app.vercel.app/**
+  ```
+
+  Las rutas que la app usa son `/auth/callback` (confirmación de cuenta) y
+  `/auth/recovery` (recuperación de contraseña). Ninguna lleva query string,
+  justamente para que el match contra esta lista sea inequívoco.
+
+Si un enlace de email llega a la raíz con `?code=...`, significa que el
+`redirectTo` no estaba autorizado y Supabase cayó al Site URL. La app reencamina
+ese código para no perder la sesión, pero es una red de seguridad: corrige la
+configuración igual.
 
 En el hosting, define además `NEXT_PUBLIC_SITE_URL` con el dominio público. Las
 cabeceras `host`/`origin` pueden apuntar al host interno detrás del proxy, así

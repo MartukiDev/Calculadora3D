@@ -33,10 +33,20 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl;
-  const isPublic = PUBLIC_ROUTES.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`),
-  );
+  const { pathname, searchParams } = request.nextUrl;
+
+  // La raíz con un código de Supabase adjunto es un enlace de email que cayó al
+  // Site URL: tiene que llegar a la página para reencaminarse, no a /login.
+  const traeCodigoDeAuth =
+    pathname === "/" &&
+    (searchParams.has("code") ||
+      (searchParams.has("token_hash") && searchParams.has("type")));
+
+  const isPublic =
+    traeCodigoDeAuth ||
+    PUBLIC_ROUTES.some(
+      (route) => pathname === route || pathname.startsWith(`${route}/`),
+    );
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();

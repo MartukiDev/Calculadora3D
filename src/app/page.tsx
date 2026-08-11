@@ -1,7 +1,23 @@
 import { redirect } from "next/navigation";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 
-export default function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ code?: string; token_hash?: string; type?: string }>;
+}) {
+  const params = await searchParams;
+
+  // Si el redirectTo no está en la lista blanca, Supabase manda el enlace al
+  // Site URL (la raíz) con el código pegado. Lo reencaminamos en vez de perderlo.
+  if (params.code || (params.token_hash && params.type)) {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v) as [string, string][],
+    );
+    const ruta = params.type === "recovery" ? "/auth/recovery" : "/auth/callback";
+    redirect(`${ruta}?${query}`);
+  }
+
   if (isSupabaseConfigured) redirect("/dashboard");
 
   return (
