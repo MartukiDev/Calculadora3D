@@ -2,8 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { getSiteUrl } from "@/lib/site-url";
 
 export type AuthState = { error?: string; message?: string };
 
@@ -12,15 +12,6 @@ function readCredentials(formData: FormData) {
     email: String(formData.get("email") ?? "").trim(),
     password: String(formData.get("password") ?? ""),
   };
-}
-
-async function siteUrl() {
-  const h = await headers();
-  const origin = h.get("origin");
-  if (origin) return origin;
-  const host = h.get("host") ?? "localhost:3000";
-  const proto = host.startsWith("localhost") ? "http" : "https";
-  return `${proto}://${host}`;
 }
 
 export async function login(
@@ -63,7 +54,7 @@ export async function signup(
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: `${await siteUrl()}/auth/callback` },
+    options: { emailRedirectTo: `${await getSiteUrl()}/auth/callback` },
   });
 
   if (error) return { error: error.message };
@@ -96,7 +87,7 @@ export async function requestPasswordReset(
 
   const supabase = await createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${await siteUrl()}/auth/callback?next=/actualizar-password`,
+    redirectTo: `${await getSiteUrl()}/auth/callback?next=/actualizar-password`,
   });
 
   if (error) return { error: error.message };

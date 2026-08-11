@@ -35,12 +35,20 @@ una vez. Crea las tablas (`user_settings`, `filaments`, `prints`), las política
 RLS de aislamiento por usuario, el trigger que crea la configuración al
 registrarse y la función `lanzar_impresion`.
 
-### 3. Auth
+### 3. Auth y enlaces por email
 
-En **Authentication → URL Configuration** agrega
-`http://localhost:3000/auth/callback` a las *Redirect URLs* (y la URL de
-producción cuando despliegues), para que funcionen la confirmación de email y el
-restablecimiento de contraseña.
+En **Authentication → URL Configuration** de Supabase:
+
+- **Site URL**: el dominio del deploy (ej. `https://tu-app.vercel.app`). Es el
+  destino al que Supabase cae cuando el `redirectTo` que pide la app no está
+  autorizado — si queda en `http://localhost:3000`, los correos de recuperación
+  apuntarán a localhost.
+- **Redirect URLs**: agrega tanto `http://localhost:3000/auth/callback` como
+  `https://tu-app.vercel.app/auth/callback`.
+
+En el hosting, define además `NEXT_PUBLIC_SITE_URL` con el dominio público. Las
+cabeceras `host`/`origin` pueden apuntar al host interno detrás del proxy, así
+que esa variable es la que manda al construir los enlaces.
 
 ## Cómo funciona
 
