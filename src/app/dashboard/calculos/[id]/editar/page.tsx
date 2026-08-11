@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { Filament, Print, UserSettings } from "@/lib/types";
+import type { Filament, Print, Printer, UserSettings } from "@/lib/types";
 import { PrintCalculator } from "../../PrintCalculator";
 
 export default async function EditarCalculoPage({
@@ -15,7 +15,7 @@ export default async function EditarCalculoPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [printRes, settingsRes, filamentsRes] = await Promise.all([
+  const [printRes, settingsRes, filamentsRes, printersRes] = await Promise.all([
     supabase.from("prints").select("*").eq("id", id).maybeSingle(),
     supabase.from("user_settings").select("*").maybeSingle(),
     supabase
@@ -23,6 +23,11 @@ export default async function EditarCalculoPage({
       .select("*")
       .eq("activo", true)
       .order("marca", { ascending: true }),
+    supabase
+      .from("printers")
+      .select("*")
+      .order("es_default", { ascending: false })
+      .order("nombre", { ascending: true }),
   ]);
 
   if (!printRes.data) notFound();
@@ -34,13 +39,15 @@ export default async function EditarCalculoPage({
   const settings: UserSettings = settingsRes.data ?? {
     user_id: user?.id ?? "",
     tarifa_luz_clp_kwh: 0,
-    consumo_impresora_w: 0,
-    tarifa_mano_obra_clp_hora: 0,
-    costo_depreciacion_clp_hora: 0,
-    desperdicio_pct_default: 0,
     iva_pct: 19,
     updated_at: new Date().toISOString(),
   };
+
+  // Se ofrecen las activas, más la del cálculo aunque esté archivada: si no,
+  // editar cualquier campo lo movería en silencio a otra máquina.
+  const impresoras = ((printersRes.data ?? []) as Printer[]).filter(
+    (p) => p.activo || p.id === print.printer_id,
+  );
 
   return (
     <div className="space-y-6">
@@ -60,6 +67,7 @@ export default async function EditarCalculoPage({
       <PrintCalculator
         settings={settings}
         filamentos={(filamentsRes.data ?? []) as Filament[]}
+        impresoras={impresoras}
         userId={user?.id ?? ""}
         print={print}
       />

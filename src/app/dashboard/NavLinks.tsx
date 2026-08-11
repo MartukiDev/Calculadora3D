@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/dashboard/calculos/nuevo", label: "Calcular", exact: true },
   { href: "/dashboard/calculos", label: "Historial", exact: false },
   { href: "/dashboard/filamentos", label: "Filamentos", exact: false },
+  { href: "/dashboard/impresoras", label: "Impresoras", exact: false },
   { href: "/dashboard/configuracion", label: "Configuración", exact: false },
 ];
 

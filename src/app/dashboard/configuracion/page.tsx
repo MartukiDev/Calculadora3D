@@ -16,10 +16,6 @@ export default async function ConfiguracionPage() {
   const settings: UserSettings = data ?? {
     user_id: user?.id ?? "",
     tarifa_luz_clp_kwh: 0,
-    consumo_impresora_w: 0,
-    tarifa_mano_obra_clp_hora: 0,
-    costo_depreciacion_clp_hora: 0,
-    desperdicio_pct_default: 0,
     iva_pct: 19,
     updated_at: new Date().toISOString(),
   };
@@ -30,7 +26,7 @@ export default async function ConfiguracionPage() {
         <h1 className="text-2xl font-semibold text-white/95">Configuración</h1>
         <p className="mt-1 text-sm text-muted">
           Estos valores precargan cada cálculo. Puedes ajustarlos por impresión
-          sin cambiar el default.
+          sin cambiar el default. Los costos de máquina están en cada impresora.
         </p>
       </div>
 

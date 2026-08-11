@@ -2,7 +2,7 @@
  * Caché de lectura en localStorage. NUNCA es fuente de verdad: Supabase lo es.
  * Se reescribe en cada lectura/escritura exitosa y se usa como fallback offline.
  */
-import type { Filament, UserSettings } from "./types";
+import type { Filament, Printer, UserSettings } from "./types";
 
 type Envelope<T> = { data: T; savedAt: number };
 
@@ -42,6 +42,7 @@ function remove(key: string): void {
 
 const settingsKey = (userId: string) => `settings_cache:${userId}`;
 const filamentsKey = (userId: string) => `filaments_cache:${userId}`;
+const printersKey = (userId: string) => `printers_cache:${userId}`;
 const draftKey = (userId: string) => `calc_draft:${userId}`;
 
 export const settingsCache = {
@@ -54,6 +55,12 @@ export const filamentsCache = {
   get: (userId: string) => read<Filament[]>(filamentsKey(userId)),
   set: (userId: string, data: Filament[]) => write(filamentsKey(userId), data),
   clear: (userId: string) => remove(filamentsKey(userId)),
+};
+
+export const printersCache = {
+  get: (userId: string) => read<Printer[]>(printersKey(userId)),
+  set: (userId: string, data: Printer[]) => write(printersKey(userId), data),
+  clear: (userId: string) => remove(printersKey(userId)),
 };
 
 export function getDraft<T>(userId: string): T | null {
@@ -72,5 +79,6 @@ export function clearDraft(userId: string): void {
 export function clearAllCache(userId: string): void {
   settingsCache.clear(userId);
   filamentsCache.clear(userId);
+  printersCache.clear(userId);
   clearDraft(userId);
 }

@@ -1,11 +1,25 @@
+/** Solo lo que no depende de la máquina; el resto vive en cada Printer. */
 export type UserSettings = {
   user_id: string;
   tarifa_luz_clp_kwh: number;
-  consumo_impresora_w: number;
+  iva_pct: number;
+  updated_at: string;
+};
+
+export type Printer = {
+  id: string;
+  user_id: string;
+  nombre: string;
+  marca: string;
+  modelo: string;
+  color_hex: string;
+  consumo_w: number;
   tarifa_mano_obra_clp_hora: number;
   costo_depreciacion_clp_hora: number;
   desperdicio_pct_default: number;
-  iva_pct: number;
+  activo: boolean;
+  es_default: boolean;
+  created_at: string;
   updated_at: string;
 };
 
@@ -33,6 +47,8 @@ export type PrintStatus = "borrador" | "lanzada";
 export type Print = {
   id: string;
   user_id: string;
+  /** Null solo si la impresora se eliminó después: el cálculo ya guarda sus costos. */
+  printer_id: string | null;
   nombre_proyecto: string;
   status: PrintStatus;
   tiempo_impresion_horas: number;

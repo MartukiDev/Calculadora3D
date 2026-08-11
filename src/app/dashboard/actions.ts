@@ -37,35 +37,135 @@ export async function saveSettings(
   const { supabase, user } = await requireUser();
 
   const ivaPct = num(formData, "iva_pct", 19);
-  const desperdicioPct = num(formData, "desperdicio_pct_default");
+  const tarifaLuz = num(formData, "tarifa_luz_clp_kwh");
 
   if (ivaPct < 0 || ivaPct > 100)
     return { error: "El IVA debe estar entre 0 y 100%." };
-  if (desperdicioPct < 0 || desperdicioPct > 100)
-    return { error: "El desperdicio debe estar entre 0 y 100%." };
+  if (tarifaLuz < 0) return { error: "Los valores no pueden ser negativos." };
 
-  const payload = {
-    user_id: user.id,
-    tarifa_luz_clp_kwh: num(formData, "tarifa_luz_clp_kwh"),
-    consumo_impresora_w: num(formData, "consumo_impresora_w"),
-    tarifa_mano_obra_clp_hora: num(formData, "tarifa_mano_obra_clp_hora"),
-    costo_depreciacion_clp_hora: num(formData, "costo_depreciacion_clp_hora"),
-    desperdicio_pct_default: desperdicioPct,
-    iva_pct: ivaPct,
-    updated_at: new Date().toISOString(),
-  };
-
-  if (Object.values(payload).some((v) => typeof v === "number" && v < 0))
-    return { error: "Los valores no pueden ser negativos." };
-
-  const { error } = await supabase
-    .from("user_settings")
-    .upsert(payload, { onConflict: "user_id" });
+  const { error } = await supabase.from("user_settings").upsert(
+    {
+      user_id: user.id,
+      tarifa_luz_clp_kwh: tarifaLuz,
+      iva_pct: ivaPct,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id" },
+  );
 
   if (error) return { error: error.message };
 
   revalidatePath("/dashboard", "layout");
   return { ok: true, message: "Configuración guardada." };
+}
+
+// ------------------------------------------------------------
+// Impresoras
+// ------------------------------------------------------------
+
+export async function savePrinter(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const { supabase, user } = await requireUser();
+
+  const id = str(formData, "id");
+  const nombre = str(formData, "nombre");
+  const colorHex = str(formData, "color_hex") || "#ff7a3d";
+  const consumoW = num(formData, "consumo_w");
+  const manoObra = num(formData, "tarifa_mano_obra_clp_hora");
+  const depreciacion = num(formData, "costo_depreciacion_clp_hora");
+  const desperdicio = num(formData, "desperdicio_pct_default");
+
+  if (!nombre) return { error: "El nombre de la impresora es obligatorio." };
+  if (!/^#[0-9a-fA-F]{6}$/.test(colorHex))
+    return { error: "El color debe ser un hex válido (#RRGGBB)." };
+  if (desperdicio < 0 || desperdicio > 100)
+    return { error: "El desperdicio debe estar entre 0 y 100%." };
+  if ([consumoW, manoObra, depreciacion].some((v) => v < 0))
+    return { error: "Los valores no pueden ser negativos." };
+
+  const payload = {
+    nombre,
+    marca: str(formData, "marca"),
+    modelo: str(formData, "modelo"),
+    color_hex: colorHex.toLowerCase(),
+    consumo_w: consumoW,
+    tarifa_mano_obra_clp_hora: manoObra,
+    costo_depreciacion_clp_hora: depreciacion,
+    desperdicio_pct_default: desperdicio,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (id) {
+    const { error } = await supabase
+      .from("printers")
+      .update(payload)
+      .eq("id", id)
+      .eq("user_id", user.id);
+    if (error) return { error: error.message };
+  } else {
+    // La primera impresora del usuario queda como predeterminada sola.
+    const { count } = await supabase
+      .from("printers")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
+    const { error } = await supabase.from("printers").insert({
+      ...payload,
+      user_id: user.id,
+      es_default: (count ?? 0) === 0,
+    });
+    if (error) return { error: error.message };
+  }
+
+  revalidatePath("/dashboard", "layout");
+  return { ok: true, message: id ? "Impresora actualizada." : "Impresora creada." };
+}
+
+export async function togglePrinterActivo(formData: FormData) {
+  const { supabase, user } = await requireUser();
+  const id = str(formData, "id");
+  const activo = str(formData, "activo") === "true";
+
+  // Archivar la predeterminada dejaría los cálculos nuevos sin máquina base.
+  if (activo) {
+    const { data } = await supabase
+      .from("printers")
+      .select("es_default")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (data?.es_default) return;
+  }
+
+  await supabase
+    .from("printers")
+    .update({ activo: !activo, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  revalidatePath("/dashboard", "layout");
+}
+
+export async function setDefaultPrinter(formData: FormData) {
+  const { supabase } = await requireUser();
+  const id = str(formData, "id");
+  if (!id) return;
+
+  await supabase.rpc("set_impresora_default", { p_printer_id: id });
+
+  revalidatePath("/dashboard", "layout");
+}
+
+export async function deletePrinter(formData: FormData) {
+  const { supabase, user } = await requireUser();
+  const id = str(formData, "id");
+
+  await supabase.from("printers").delete().eq("id", id).eq("user_id", user.id);
+
+  revalidatePath("/dashboard", "layout");
 }
 
 // ------------------------------------------------------------
@@ -175,16 +275,28 @@ export async function savePrint(
   const id = str(formData, "id");
   const nombre = str(formData, "nombre_proyecto");
   const horas = num(formData, "tiempo_impresion_horas");
+  const printerId = str(formData, "printer_id");
   const filamentosUsados = parseFilamentosUsados(
     String(formData.get("filamentos_usados") ?? "[]"),
   );
 
   if (!nombre) return { error: "El nombre del proyecto es obligatorio." };
   if (horas <= 0) return { error: "El tiempo de impresión debe ser mayor a 0." };
+  if (!printerId) return { error: "Selecciona la impresora que vas a usar." };
   if (filamentosUsados.length === 0)
     return { error: "Agrega al menos un filamento con gramos." };
   if (filamentosUsados.length > MAX_FILAMENTOS)
     return { error: `Máximo ${MAX_FILAMENTOS} filamentos por impresión.` };
+
+  // La impresora tiene que ser del usuario: el id viaja en un campo oculto.
+  const { data: printer } = await supabase
+    .from("printers")
+    .select("id")
+    .eq("id", printerId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!printer) return { error: "La impresora seleccionada ya no existe." };
 
   const margenPct = num(formData, "margen_pct");
   if (margenPct < 0 || margenPct > 500)
@@ -224,6 +336,7 @@ export async function savePrint(
 
   const payload = {
     nombre_proyecto: nombre,
+    printer_id: printerId,
     tiempo_impresion_horas: horas,
     filamentos_usados: filamentosUsados,
     costo_filamento: round(breakdown.costoFilamento),

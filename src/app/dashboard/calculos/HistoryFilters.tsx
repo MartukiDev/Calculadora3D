@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import type { PrintStatus } from "@/lib/types";
+import type { Printer, PrintStatus } from "@/lib/types";
 
 const STATUSES: { value: PrintStatus | "todos"; label: string }[] = [
   { value: "todos", label: "Todos" },
@@ -15,18 +15,22 @@ export function HistoryFilters({
   q,
   desde,
   hasta,
+  printer,
+  impresoras,
 }: {
   status: PrintStatus | "todos";
   q: string;
   desde: string;
   hasta: string;
+  printer: string;
+  impresoras: Printer[];
 }) {
   const router = useRouter();
   const [busqueda, setBusqueda] = useState(q);
 
   const push = (patch: Record<string, string>) => {
     const params = new URLSearchParams();
-    const next = { status, q: busqueda, desde, hasta, ...patch };
+    const next = { status, q: busqueda, desde, hasta, printer, ...patch };
     Object.entries(next).forEach(([key, value]) => {
       if (value && value !== "todos") params.set(key, value);
     });
@@ -42,7 +46,7 @@ export function HistoryFilters({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busqueda]);
 
-  const hayFiltros = status !== "todos" || q || desde || hasta;
+  const hayFiltros = status !== "todos" || q || desde || hasta || printer;
 
   return (
     <div className="glass-panel flex flex-wrap items-end gap-3 !p-4">
@@ -75,6 +79,29 @@ export function HistoryFilters({
           placeholder="Nombre del proyecto"
         />
       </div>
+
+      {impresoras.length > 1 && (
+        <div className="min-w-[10rem]">
+          <label className="field-label" htmlFor="printer">
+            Impresora
+          </label>
+          <select
+            id="printer"
+            value={printer}
+            onChange={(e) => push({ printer: e.target.value })}
+            className="field-input !py-2"
+          >
+            <option value="" className="bg-[#1a1e25]">
+              Todas
+            </option>
+            {impresoras.map((p) => (
+              <option key={p.id} value={p.id} className="bg-[#1a1e25]">
+                {p.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div>
         <label className="field-label" htmlFor="desde">

@@ -12,8 +12,8 @@ Construir una app web personal para calcular el costo real de cada impresión 3D
 
 ## Supuestos tomados (ajustables antes de ejecutar el prompt)
 
-- Depreciación de impresora: se define como un monto fijo CLP/hora en la configuración del usuario (no amortización por vida útil ni valor de compra). Si prefieres el modelo de amortización, avísame y lo cambiamos.
-- Una sola impresora por usuario (consumo en watts se guarda en configuración global, no hay tabla `printers`). Si tienes más de una impresora y quieres perfiles separados, se puede extender fácilmente.
+- Depreciación de impresora: se define como un monto fijo CLP/hora **por impresora** (no amortización por vida útil ni valor de compra). Si prefieres el modelo de amortización, avísame y lo cambiamos.
+- Multi-impresora: cada usuario administra su parque en la tabla `printers`. Consumo en watts, mano de obra, depreciación y desperdicio default son **por máquina**; en `user_settings` solo quedan la tarifa de luz y el IVA, que no dependen de la impresora. Cada cálculo guarda con qué impresora se hizo (`prints.printer_id`).
 - No se incluyó empaque/envío en el desglose (no lo seleccionaste). Se puede agregar después como campo opcional.
 - IVA (19% default, editable) se aplica sobre el precio neto con margen, no sobre el costo — refleja cómo se calcula un precio de venta final en Chile.
 - Gramos usados por filamento en cada impresión se ingresan manualmente (no hay integración con slicer/G-code).
@@ -161,7 +161,7 @@ precio_neto            = costo_total * (1 + margen_pct / 100)     // margen_pct:
 precio_final_con_iva    = precio_neto * (1 + iva_pct / 100)
 ```
 
-Todos los campos de configuración (tarifa_luz, consumo_w, mano_obra, depreciación, desperdicio default, IVA) se precargan desde `user_settings` en el formulario de cálculo, pero son editables por impresión sin modificar el default guardado.
+La tarifa de luz y el IVA se precargan desde `user_settings`; el consumo en watts, la mano de obra, la depreciación y el desperdicio default salen de la impresora seleccionada. Todos son editables por impresión sin modificar el default guardado, y cambiar de impresora vuelve a precargar sus cuatro valores.
 
 ## Dirección visual: Glassmorphism
 

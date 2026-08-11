@@ -6,7 +6,7 @@ import { FilamentChip } from "@/components/FilamentChip";
 import { GlassPanel } from "@/components/GlassPanel";
 import { Alert, StatusBadge } from "@/components/ui";
 import { formatDate, formatGramos, formatHoras } from "@/lib/format";
-import type { Filament, Print } from "@/lib/types";
+import type { Filament, Print, Printer } from "@/lib/types";
 import { ClearDraft } from "../ClearDraft";
 import { PrintActions } from "./PrintActions";
 
@@ -35,9 +35,20 @@ export default async function CalculoDetallePage({
   const print = data as Print;
 
   const filamentIds = (print.filamentos_usados ?? []).map((f) => f.filament_id);
-  const { data: filamentsData } = filamentIds.length
-    ? await supabase.from("filaments").select("*").in("id", filamentIds)
-    : { data: [] };
+  const [{ data: filamentsData }, { data: printerData }] = await Promise.all([
+    filamentIds.length
+      ? supabase.from("filaments").select("*").in("id", filamentIds)
+      : Promise.resolve({ data: [] }),
+    print.printer_id
+      ? supabase
+          .from("printers")
+          .select("*")
+          .eq("id", print.printer_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const impresora = printerData as Printer | null;
 
   const filamentos = new Map(
     ((filamentsData ?? []) as Filament[]).map((f) => [f.id, f]),
@@ -98,6 +109,29 @@ export default async function CalculoDetallePage({
       <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
         <div className="space-y-6">
           <GlassPanel title="Impresión">
+            <div className="mb-5 flex items-center gap-3 border-b border-white/[0.08] pb-4">
+              <span
+                className="h-9 w-9 shrink-0 rounded-xl border border-white/20 shadow-[inset_0_2px_4px_rgba(255,255,255,0.3)]"
+                style={{
+                  backgroundColor: impresora?.color_hex ?? "rgba(255,255,255,0.08)",
+                }}
+                aria-hidden
+              />
+              <div className="min-w-0">
+                <p className="text-xs text-muted">Impresora</p>
+                <p className="truncate text-sm font-medium text-white/90">
+                  {impresora?.nombre ?? "Sin impresora asociada"}
+                </p>
+                {impresora && (impresora.marca || impresora.modelo) && (
+                  <p className="truncate text-xs text-muted">
+                    {[impresora.marca, impresora.modelo]
+                      .filter(Boolean)
+                      .join(" ")}
+                  </p>
+                )}
+              </div>
+            </div>
+
             <dl className="grid grid-cols-2 gap-5 text-sm">
               <div>
                 <dt className="text-xs text-muted">Tiempo</dt>

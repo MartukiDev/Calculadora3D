@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { GlassPanel } from "@/components/GlassPanel";
 import { Alert, EmptyState, StatusBadge } from "@/components/ui";
 import { formatCLP, formatDate, formatHoras } from "@/lib/format";
-import type { Filament, Print, PrintStatus } from "@/lib/types";
+import type { Filament, Print, Printer, PrintStatus } from "@/lib/types";
 import { HistoryFilters } from "./HistoryFilters";
 
 type SearchParams = {
@@ -11,6 +11,7 @@ type SearchParams = {
   q?: string;
   desde?: string;
   hasta?: string;
+  printer?: string;
 };
 
 export default async function CalculosPage({
@@ -38,13 +39,19 @@ export default async function CalculosPage({
   if (params.hasta) {
     query = query.lte("created_at", `${params.hasta}T23:59:59`);
   }
+  if (params.printer) {
+    query = query.eq("printer_id", params.printer);
+  }
 
-  const [printsRes, filamentsRes] = await Promise.all([
+  const [printsRes, filamentsRes, printersRes] = await Promise.all([
     query,
     supabase.from("filaments").select("id, color_hex, marca, color_nombre"),
+    supabase.from("printers").select("*").order("nombre", { ascending: true }),
   ]);
 
   const prints = (printsRes.data ?? []) as Print[];
+  const printers = (printersRes.data ?? []) as Printer[];
+  const printersPorId = new Map(printers.map((p) => [p.id, p]));
   const colores = new Map(
     ((filamentsRes.data ?? []) as Pick<
       Filament,
@@ -76,6 +83,8 @@ export default async function CalculosPage({
         q={params.q ?? ""}
         desde={params.desde ?? ""}
         hasta={params.hasta ?? ""}
+        printer={params.printer ?? ""}
+        impresoras={printers}
       />
 
       {printsRes.error && (
@@ -119,9 +128,24 @@ export default async function CalculosPage({
                     <p className="truncate text-sm font-medium text-white/90">
                       {print.nombre_proyecto}
                     </p>
-                    <p className="mt-0.5 text-xs text-muted">
-                      {formatDate(print.created_at)} ·{" "}
-                      {formatHoras(print.tiempo_impresion_horas)}
+                    <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
+                      {print.printer_id && (
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full border border-white/25"
+                          style={{
+                            backgroundColor:
+                              printersPorId.get(print.printer_id)?.color_hex ??
+                              "rgba(255,255,255,0.15)",
+                          }}
+                          aria-hidden
+                        />
+                      )}
+                      <span className="truncate">
+                        {printersPorId.get(print.printer_id ?? "")?.nombre ??
+                          "Sin impresora"}{" "}
+                        · {formatDate(print.created_at)} ·{" "}
+                        {formatHoras(print.tiempo_impresion_horas)}
+                      </span>
                     </p>
                   </div>
 

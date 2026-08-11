@@ -1,11 +1,11 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import Link from "next/link";
+import { useActionState, useEffect } from "react";
 import { saveSettings, type ActionState } from "@/app/dashboard/actions";
 import { GlassPanel } from "@/components/GlassPanel";
 import { Alert, SubmitButton } from "@/components/ui";
 import { settingsCache } from "@/lib/cache";
-import { formatCLP } from "@/lib/format";
 import type { UserSettings } from "@/lib/types";
 
 type NumericField = Exclude<keyof UserSettings, "user_id" | "updated_at">;
@@ -24,35 +24,6 @@ const FIELDS: {
     hint: "Lo que cobra tu distribuidora por kWh.",
     step: "0.01",
     suffix: "CLP/kWh",
-  },
-  {
-    name: "consumo_impresora_w",
-    label: "Consumo de la impresora",
-    hint: "Consumo promedio en watts durante la impresión.",
-    step: "1",
-    suffix: "W",
-  },
-  {
-    name: "tarifa_mano_obra_clp_hora",
-    label: "Mano de obra",
-    hint: "Cuánto vale tu hora de supervisión y post-proceso.",
-    step: "1",
-    suffix: "CLP/hora",
-  },
-  {
-    name: "costo_depreciacion_clp_hora",
-    label: "Depreciación",
-    hint: "Monto fijo por hora imputado al desgaste de la máquina.",
-    step: "1",
-    suffix: "CLP/hora",
-  },
-  {
-    name: "desperdicio_pct_default",
-    label: "Desperdicio por defecto",
-    hint: "Purgas, fallas y soportes, como % sobre el subtotal.",
-    step: "0.1",
-    suffix: "%",
-    max: 100,
   },
   {
     name: "iva_pct",
@@ -76,35 +47,17 @@ export function SettingsForm({
     {},
   );
 
-  const [values, setValues] = useState<Record<NumericField, string>>(() => ({
-    tarifa_luz_clp_kwh: String(settings.tarifa_luz_clp_kwh ?? 0),
-    consumo_impresora_w: String(settings.consumo_impresora_w ?? 0),
-    tarifa_mano_obra_clp_hora: String(settings.tarifa_mano_obra_clp_hora ?? 0),
-    costo_depreciacion_clp_hora: String(
-      settings.costo_depreciacion_clp_hora ?? 0,
-    ),
-    desperdicio_pct_default: String(settings.desperdicio_pct_default ?? 0),
-    iva_pct: String(settings.iva_pct ?? 19),
-  }));
-
   // La caché local se escribe con lo que Supabase confirmó, nunca con el borrador.
   useEffect(() => {
     if (userId) settingsCache.set(userId, settings);
   }, [userId, settings]);
 
-  const num = (key: NumericField) => {
-    const parsed = parseFloat(values[key]);
-    return Number.isFinite(parsed) ? parsed : 0;
-  };
-
-  const costoHoraFija =
-    num("tarifa_luz_clp_kwh") * (num("consumo_impresora_w") / 1000) +
-    num("tarifa_mano_obra_clp_hora") +
-    num("costo_depreciacion_clp_hora");
-
   return (
     <form action={formAction} className="space-y-6">
-      <GlassPanel title="Costos base">
+      <GlassPanel
+        title="Costos base"
+        description="Lo que no depende de la máquina: la tarifa la fija tu distribuidora y el IVA, el país."
+      >
         <div className="grid gap-5 sm:grid-cols-2">
           {FIELDS.map((field) => (
             <div key={field.name}>
@@ -120,13 +73,7 @@ export function SettingsForm({
                   min="0"
                   max={field.max}
                   required
-                  value={values[field.name]}
-                  onChange={(e) =>
-                    setValues((prev) => ({
-                      ...prev,
-                      [field.name]: e.target.value,
-                    }))
-                  }
+                  defaultValue={String(settings[field.name] ?? 0)}
                   className="field-input-num pr-20"
                 />
                 <span className="pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 text-xs text-white/40">
@@ -143,15 +90,15 @@ export function SettingsForm({
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-sm font-medium text-white/90">
-              Costo fijo por hora de impresión
+              Consumo, mano de obra, depreciación y desperdicio
             </p>
             <p className="mt-0.5 text-xs text-muted">
-              Luz + mano de obra + depreciación, sin filamento ni desperdicio.
+              Ahora viven en cada impresora, porque no cuestan lo mismo en todas.
             </p>
           </div>
-          <span className="num text-lg font-semibold text-accent-2">
-            {formatCLP(costoHoraFija)}
-          </span>
+          <Link href="/dashboard/impresoras" className="btn-ghost text-sm">
+            Ir a impresoras
+          </Link>
         </div>
       </GlassPanel>
 

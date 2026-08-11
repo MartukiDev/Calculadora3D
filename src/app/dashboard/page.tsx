@@ -3,13 +3,18 @@ import { createClient } from "@/lib/supabase/server";
 import { GlassPanel } from "@/components/GlassPanel";
 import { FilamentChip } from "@/components/FilamentChip";
 import { StatusBadge, EmptyState, Alert } from "@/components/ui";
-import { formatCLP, formatDate, formatGramos } from "@/lib/format";
-import { STOCK_BAJO_GRAMOS, type Filament, type Print } from "@/lib/types";
+import { formatCLP, formatDate } from "@/lib/format";
+import {
+  STOCK_BAJO_GRAMOS,
+  type Filament,
+  type Print,
+  type Printer,
+} from "@/lib/types";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
 
-  const [settingsRes, filamentsRes, printsRes] = await Promise.all([
+  const [settingsRes, filamentsRes, printsRes, printersRes] = await Promise.all([
     supabase.from("user_settings").select("*").maybeSingle(),
     supabase.from("filaments").select("*").eq("activo", true),
     supabase
@@ -17,18 +22,17 @@ export default async function DashboardPage() {
       .select("*")
       .order("created_at", { ascending: false })
       .limit(5),
+    supabase.from("printers").select("*").eq("activo", true),
   ]);
 
   const settings = settingsRes.data;
   const filaments = (filamentsRes.data ?? []) as Filament[];
   const prints = (printsRes.data ?? []) as Print[];
+  const printers = (printersRes.data ?? []) as Printer[];
+  const printersPorId = new Map(printers.map((p) => [p.id, p]));
 
   const stockBajo = filaments.filter(
     (f) => Number(f.stock_gramos) < STOCK_BAJO_GRAMOS,
-  );
-  const stockTotal = filaments.reduce(
-    (acc, f) => acc + Number(f.stock_gramos),
-    0,
   );
   const lanzadas = prints.filter((p) => p.status === "lanzada");
   const valorInventario = filaments.reduce(
@@ -36,10 +40,11 @@ export default async function DashboardPage() {
     0,
   );
 
+  const sinImpresoras = printers.length === 0;
   const sinConfigurar =
-    !settings ||
-    (Number(settings.tarifa_luz_clp_kwh) === 0 &&
-      Number(settings.consumo_impresora_w) === 0);
+    !sinImpresoras &&
+    (!settings || Number(settings.tarifa_luz_clp_kwh) === 0) &&
+    printers.every((p) => Number(p.consumo_w) === 0);
 
   return (
     <div className="space-y-6">
@@ -55,10 +60,19 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
+      {sinImpresoras && (
+        <Alert tone="warn">
+          No tienes ninguna impresora activa — sin una no se puede costear nada.{" "}
+          <Link href="/dashboard/impresoras" className="underline">
+            Agregar impresora
+          </Link>
+        </Alert>
+      )}
+
       {sinConfigurar && (
         <Alert tone="warn">
-          Aún no configuraste tarifas de luz ni consumo de la impresora — los
-          costos saldrán incompletos.{" "}
+          Aún no configuraste la tarifa de luz ni el consumo de tus impresoras —
+          los costos saldrán incompletos.{" "}
           <Link href="/dashboard/configuracion" className="underline">
             Ir a configuración
           </Link>
@@ -66,8 +80,8 @@ export default async function DashboardPage() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="Impresoras activas" value={String(printers.length)} />
         <Stat label="Filamentos activos" value={String(filaments.length)} />
-        <Stat label="Stock total" value={formatGramos(stockTotal)} />
         <Stat label="Valor inventario" value={formatCLP(valorInventario)} />
         <Stat
           label="Stock bajo"
@@ -110,9 +124,23 @@ export default async function DashboardPage() {
                       <p className="truncate text-sm font-medium text-white/90">
                         {print.nombre_proyecto}
                       </p>
-                      <p className="mt-0.5 text-xs text-muted">
-                        {formatDate(print.created_at)} ·{" "}
-                        {print.filamentos_usados?.length ?? 0} filamento(s)
+                      <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted">
+                        {print.printer_id && (
+                          <span
+                            className="h-2 w-2 shrink-0 rounded-full border border-white/25"
+                            style={{
+                              backgroundColor:
+                                printersPorId.get(print.printer_id)
+                                  ?.color_hex ?? "rgba(255,255,255,0.15)",
+                            }}
+                            aria-hidden
+                          />
+                        )}
+                        <span className="truncate">
+                          {printersPorId.get(print.printer_id ?? "")?.nombre ??
+                            "Sin impresora"}{" "}
+                          · {formatDate(print.created_at)}
+                        </span>
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-3">

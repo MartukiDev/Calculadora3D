@@ -15,6 +15,7 @@ import {
   type Filament,
   type FilamentoUsado,
   type Print,
+  type Printer,
   type UserSettings,
 } from "@/lib/types";
 
@@ -22,6 +23,7 @@ type Draft = {
   nombre: string;
   horas: string;
   notas: string;
+  printer_id: string;
   seleccion: { filament_id: string; gramos: string }[];
   overrides: {
     tarifa_luz_clp_kwh: string;
@@ -34,31 +36,53 @@ type Draft = {
   margen: string;
 };
 
-function draftFromSettings(settings: UserSettings): Draft {
+/** La impresora manda en los costos de máquina; settings solo en luz e IVA. */
+function overridesDe(
+  settings: UserSettings,
+  printer: Printer | undefined,
+): Draft["overrides"] {
+  return {
+    tarifa_luz_clp_kwh: String(settings.tarifa_luz_clp_kwh ?? 0),
+    consumo_impresora_w: String(printer?.consumo_w ?? 0),
+    tarifa_mano_obra_clp_hora: String(printer?.tarifa_mano_obra_clp_hora ?? 0),
+    costo_depreciacion_clp_hora: String(
+      printer?.costo_depreciacion_clp_hora ?? 0,
+    ),
+    desperdicio_pct: String(printer?.desperdicio_pct_default ?? 0),
+    iva_pct: String(settings.iva_pct ?? 19),
+  };
+}
+
+function elegirDefault(printers: Printer[]): Printer | undefined {
+  return printers.find((p) => p.es_default) ?? printers[0];
+}
+
+function draftInicial(settings: UserSettings, printers: Printer[]): Draft {
+  const printer = elegirDefault(printers);
   return {
     nombre: "",
     horas: "",
     notas: "",
+    printer_id: printer?.id ?? "",
     seleccion: [{ filament_id: "", gramos: "" }],
-    overrides: {
-      tarifa_luz_clp_kwh: String(settings.tarifa_luz_clp_kwh ?? 0),
-      consumo_impresora_w: String(settings.consumo_impresora_w ?? 0),
-      tarifa_mano_obra_clp_hora: String(settings.tarifa_mano_obra_clp_hora ?? 0),
-      costo_depreciacion_clp_hora: String(
-        settings.costo_depreciacion_clp_hora ?? 0,
-      ),
-      desperdicio_pct: String(settings.desperdicio_pct_default ?? 0),
-      iva_pct: String(settings.iva_pct ?? 19),
-    },
+    overrides: overridesDe(settings, printer),
     margen: "0",
   };
 }
 
-function draftFromPrint(print: Print, settings: UserSettings): Draft {
+function draftFromPrint(
+  print: Print,
+  settings: UserSettings,
+  printers: Printer[],
+): Draft {
+  const printer =
+    printers.find((p) => p.id === print.printer_id) ?? elegirDefault(printers);
+
   return {
     nombre: print.nombre_proyecto,
     horas: String(print.tiempo_impresion_horas),
     notas: print.notas ?? "",
+    printer_id: printer?.id ?? "",
     seleccion:
       print.filamentos_usados?.length > 0
         ? print.filamentos_usados.map((f) => ({
@@ -67,23 +91,24 @@ function draftFromPrint(print: Print, settings: UserSettings): Draft {
           }))
         : [{ filament_id: "", gramos: "" }],
     overrides: {
-      // Los costos por hora no se persisten en prints: reconstruimos desde settings.
+      // Los costos por hora no se persisten en prints: los reconstruimos
+      // dividiendo el monto guardado por las horas, y el resto sale de la máquina.
       tarifa_luz_clp_kwh: String(settings.tarifa_luz_clp_kwh ?? 0),
-      consumo_impresora_w: String(settings.consumo_impresora_w ?? 0),
+      consumo_impresora_w: String(printer?.consumo_w ?? 0),
       tarifa_mano_obra_clp_hora:
         Number(print.tiempo_impresion_horas) > 0
           ? String(
               Number(print.costo_mano_obra) /
                 Number(print.tiempo_impresion_horas),
             )
-          : String(settings.tarifa_mano_obra_clp_hora ?? 0),
+          : String(printer?.tarifa_mano_obra_clp_hora ?? 0),
       costo_depreciacion_clp_hora:
         Number(print.tiempo_impresion_horas) > 0
           ? String(
               Number(print.costo_depreciacion) /
                 Number(print.tiempo_impresion_horas),
             )
-          : String(settings.costo_depreciacion_clp_hora ?? 0),
+          : String(printer?.costo_depreciacion_clp_hora ?? 0),
       desperdicio_pct: String(print.desperdicio_pct),
       iva_pct: String(print.iva_pct),
     },
@@ -99,11 +124,13 @@ const toNum = (v: string) => {
 export function PrintCalculator({
   settings,
   filamentos,
+  impresoras,
   userId,
   print,
 }: {
   settings: UserSettings;
   filamentos: Filament[];
+  impresoras: Printer[];
   userId: string;
   print?: Print;
 }) {
@@ -114,7 +141,9 @@ export function PrintCalculator({
   const isEdit = Boolean(print);
 
   const [draft, setDraftState] = useState<Draft>(() =>
-    print ? draftFromPrint(print, settings) : draftFromSettings(settings),
+    print
+      ? draftFromPrint(print, settings, impresoras)
+      : draftInicial(settings, impresoras),
   );
   const [draftRestaurado, setDraftRestaurado] = useState(false);
   const [mostrarOverrides, setMostrarOverrides] = useState(false);
@@ -126,11 +155,19 @@ export function PrintCalculator({
     if (isEdit || !userId) return;
     const saved = getDraft<Draft>(userId);
     if (saved?.nombre || saved?.horas) {
+      // Un borrador guardado antes de multi-impresora no trae printer_id, y uno
+      // viejo puede apuntar a una máquina ya eliminada: caemos a la default.
+      const printerValido = impresoras.some((p) => p.id === saved.printer_id);
       // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización inicial desde un sistema externo (localStorage)
-      setDraftState(saved);
+      setDraftState({
+        ...saved,
+        printer_id: printerValido
+          ? saved.printer_id
+          : (elegirDefault(impresoras)?.id ?? ""),
+      });
       setDraftRestaurado(true);
     }
-  }, [isEdit, userId]);
+  }, [isEdit, userId, impresoras]);
 
   // Autoguardado del formulario no enviado.
   useEffect(() => {
@@ -149,6 +186,29 @@ export function PrintCalculator({
     () => new Map(filamentos.map((f) => [f.id, f])),
     [filamentos],
   );
+
+  const impresoraActual = impresoras.find((p) => p.id === draft.printer_id);
+
+  // Cambiar de máquina reemplaza sus cuatro costos; luz e IVA son del usuario.
+  const cambiarImpresora = (printerId: string) =>
+    setDraftState((prev) => {
+      const printer = impresoras.find((p) => p.id === printerId);
+      return {
+        ...prev,
+        printer_id: printerId,
+        overrides: {
+          ...prev.overrides,
+          consumo_impresora_w: String(printer?.consumo_w ?? 0),
+          tarifa_mano_obra_clp_hora: String(
+            printer?.tarifa_mano_obra_clp_hora ?? 0,
+          ),
+          costo_depreciacion_clp_hora: String(
+            printer?.costo_depreciacion_clp_hora ?? 0,
+          ),
+          desperdicio_pct: String(printer?.desperdicio_pct_default ?? 0),
+        },
+      };
+    });
 
   const seleccionValida: FilamentoUsado[] = draft.seleccion
     .filter((s) => s.filament_id && toNum(s.gramos) > 0)
@@ -203,6 +263,22 @@ export function PrintCalculator({
       ),
     }));
 
+  if (impresoras.length === 0) {
+    return (
+      <GlassPanel>
+        <EmptyState
+          title="Necesitas al menos una impresora activa"
+          description="Cada impresora aporta su consumo, mano de obra, depreciación y desperdicio al cálculo."
+          action={
+            <Link href="/dashboard/impresoras" className="btn-primary mt-2">
+              Agregar impresora
+            </Link>
+          }
+        />
+      </GlassPanel>
+    );
+  }
+
   if (filamentos.length === 0) {
     return (
       <GlassPanel>
@@ -222,6 +298,7 @@ export function PrintCalculator({
   return (
     <form action={formAction} className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
       {print && <input type="hidden" name="id" value={print.id} />}
+      <input type="hidden" name="printer_id" value={draft.printer_id} />
       <input
         type="hidden"
         name="filamentos_usados"
@@ -247,7 +324,7 @@ export function PrintCalculator({
               type="button"
               className="underline"
               onClick={() => {
-                setDraftState(draftFromSettings(settings));
+                setDraftState(draftInicial(settings, impresoras));
                 clearDraft(userId);
                 setDraftRestaurado(false);
               }}
@@ -295,6 +372,41 @@ export function PrintCalculator({
                 </span>
               </div>
             </div>
+          </div>
+
+          <div className="mt-5 border-t border-white/[0.08] pt-5">
+            <label className="field-label" htmlFor="impresora">
+              Impresora
+            </label>
+            <div className="grid grid-cols-[auto_1fr] items-center gap-3">
+              <span
+                className="h-9 w-9 shrink-0 rounded-xl border border-white/20 shadow-[inset_0_2px_4px_rgba(255,255,255,0.3)]"
+                style={{
+                  backgroundColor:
+                    impresoraActual?.color_hex ?? "rgba(255,255,255,0.08)",
+                }}
+                aria-hidden
+              />
+              <select
+                id="impresora"
+                value={draft.printer_id}
+                onChange={(e) => cambiarImpresora(e.target.value)}
+                className="field-input"
+              >
+                {impresoras.map((p) => (
+                  <option key={p.id} value={p.id} className="bg-[#1a1e25]">
+                    {p.nombre}
+                    {p.marca || p.modelo
+                      ? ` · ${[p.marca, p.modelo].filter(Boolean).join(" ")}`
+                      : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="mt-1.5 text-xs text-muted">
+              Aporta consumo, mano de obra, depreciación y desperdicio. Puedes
+              ajustarlos abajo solo para este cálculo.
+            </p>
           </div>
         </GlassPanel>
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Alert } from "@/components/ui";
-import type { Filament, UserSettings } from "@/lib/types";
+import type { Filament, Printer, UserSettings } from "@/lib/types";
 import { PrintCalculator } from "../PrintCalculator";
 
 export default async function NuevoCalculoPage() {
@@ -10,30 +10,37 @@ export default async function NuevoCalculoPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [settingsRes, filamentsRes] = await Promise.all([
+  const [settingsRes, filamentsRes, printersRes] = await Promise.all([
     supabase.from("user_settings").select("*").maybeSingle(),
     supabase
       .from("filaments")
       .select("*")
       .eq("activo", true)
       .order("marca", { ascending: true }),
+    supabase
+      .from("printers")
+      .select("*")
+      .eq("activo", true)
+      .order("es_default", { ascending: false })
+      .order("nombre", { ascending: true }),
   ]);
 
   const settings: UserSettings = settingsRes.data ?? {
     user_id: user?.id ?? "",
     tarifa_luz_clp_kwh: 0,
-    consumo_impresora_w: 0,
-    tarifa_mano_obra_clp_hora: 0,
-    costo_depreciacion_clp_hora: 0,
-    desperdicio_pct_default: 0,
     iva_pct: 19,
     updated_at: new Date().toISOString(),
   };
 
-  const sinConfigurar =
-    Number(settings.tarifa_luz_clp_kwh) === 0 &&
-    Number(settings.consumo_impresora_w) === 0 &&
-    Number(settings.tarifa_mano_obra_clp_hora) === 0;
+  const impresoras = (printersRes.data ?? []) as Printer[];
+
+  const sinTarifaLuz = Number(settings.tarifa_luz_clp_kwh) === 0;
+  const sinCostosMaquina = impresoras.every(
+    (p) =>
+      Number(p.consumo_w) === 0 &&
+      Number(p.tarifa_mano_obra_clp_hora) === 0 &&
+      Number(p.costo_depreciacion_clp_hora) === 0,
+  );
 
   return (
     <div className="space-y-6">
@@ -44,12 +51,21 @@ export default async function NuevoCalculoPage() {
         </p>
       </div>
 
-      {sinConfigurar && (
+      {impresoras.length > 0 && sinCostosMaquina && (
         <Alert tone="warn">
-          Tu configuración global está en cero, así que solo se contará el
-          filamento.{" "}
+          Tus impresoras tienen todos sus costos en cero, así que solo se contará
+          el filamento.{" "}
+          <Link href="/dashboard/impresoras" className="underline">
+            Configurar impresoras
+          </Link>
+        </Alert>
+      )}
+
+      {sinTarifaLuz && (
+        <Alert tone="warn">
+          Tu tarifa de luz está en cero: el costo eléctrico saldrá $0.{" "}
           <Link href="/dashboard/configuracion" className="underline">
-            Configurar costos base
+            Configurar tarifa
           </Link>
         </Alert>
       )}
@@ -57,6 +73,7 @@ export default async function NuevoCalculoPage() {
       <PrintCalculator
         settings={settings}
         filamentos={(filamentsRes.data ?? []) as Filament[]}
+        impresoras={impresoras}
         userId={user?.id ?? ""}
       />
     </div>
