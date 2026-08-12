@@ -7,6 +7,7 @@ const LINKS = [
   { href: "/dashboard", label: "Inicio", exact: true },
   { href: "/dashboard/calculos/nuevo", label: "Calcular", exact: true },
   { href: "/dashboard/calculos", label: "Historial", exact: false },
+  { href: "/dashboard/reportes", label: "Reportes", exact: false },
   { href: "/dashboard/filamentos", label: "Filamentos", exact: false },
   { href: "/dashboard/impresoras", label: "Impresoras", exact: false },
   { href: "/dashboard/configuracion", label: "Configuración", exact: false },
@@ -16,7 +17,10 @@ export function NavLinks() {
   const pathname = usePathname();
 
   return (
-    <nav className="order-3 flex w-full items-center gap-1 overflow-x-auto sm:order-none sm:w-auto">
+    // En mobile la barra sangra hasta el borde: ver un link cortado avisa que
+    // hay más al costado, cosa que un scroll que empieza y termina con padding
+    // no comunica.
+    <nav className="order-3 -mx-4 flex w-[calc(100%+2rem)] items-center gap-1 overflow-x-auto px-4 sm:order-none sm:mx-0 sm:w-auto sm:px-0">
       {LINKS.map((link) => {
         const active = link.exact
           ? pathname === link.href

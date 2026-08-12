@@ -16,7 +16,7 @@ export function GlassPanel({
   actions,
 }: Props) {
   return (
-    <section className={`glass-panel animate-panel-in p-6 ${className}`}>
+    <section className={`glass-panel animate-panel-in p-5 sm:p-6 ${className}`}>
       {(title || actions) && (
         <header className="mb-5 flex items-start justify-between gap-4">
           <div>

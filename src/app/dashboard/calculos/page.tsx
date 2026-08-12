@@ -149,33 +149,38 @@ export default async function CalculosPage({
                     </p>
                   </div>
 
-                  <div className="text-right">
-                    <p className="text-xs text-muted">Costo</p>
-                    <p className="num text-sm text-white/80">
-                      {formatCLP(print.costo_total)}
-                    </p>
+                  {/* El badge acompaña al nombre en mobile y cierra la fila en desktop. */}
+                  <div className="sm:order-last">
+                    <StatusBadge status={print.status} />
                   </div>
 
-                  <div className="text-right">
-                    <p className="text-xs text-muted">
-                      IVA ({Number(print.iva_pct)}%)
-                    </p>
-                    <p className="num text-sm text-white/80">
-                      {formatCLP(
-                        Number(print.precio_final_con_iva) -
-                          Number(print.precio_neto),
-                      )}
-                    </p>
-                  </div>
+                  <div className="grid w-full grid-cols-3 gap-2 border-t border-white/[0.06] pt-3 sm:flex sm:w-auto sm:gap-4 sm:border-0 sm:pt-0">
+                    <div className="text-left sm:text-right">
+                      <p className="text-xs text-muted">Costo</p>
+                      <p className="num text-sm text-white/80">
+                        {formatCLP(print.costo_total)}
+                      </p>
+                    </div>
 
-                  <div className="text-right">
-                    <p className="text-xs text-muted">Precio final</p>
-                    <p className="num text-sm font-semibold text-white/95">
-                      {formatCLP(print.precio_final_con_iva)}
-                    </p>
-                  </div>
+                    <div className="text-left sm:text-right">
+                      <p className="text-xs text-muted">
+                        IVA ({Number(print.iva_pct)}%)
+                      </p>
+                      <p className="num text-sm text-white/80">
+                        {formatCLP(
+                          Number(print.precio_final_con_iva) -
+                            Number(print.precio_neto),
+                        )}
+                      </p>
+                    </div>
 
-                  <StatusBadge status={print.status} />
+                    <div className="text-left sm:text-right">
+                      <p className="text-xs text-muted">Precio final</p>
+                      <p className="num text-sm font-semibold text-white/95">
+                        {formatCLP(print.precio_final_con_iva)}
+                      </p>
+                    </div>
+                  </div>
                 </Link>
               </li>
             ))}

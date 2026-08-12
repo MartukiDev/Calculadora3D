@@ -79,7 +79,7 @@ export default async function DashboardPage() {
         </Alert>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat label="Impresoras activas" value={String(printers.length)} />
         <Stat label="Filamentos activos" value={String(filaments.length)} />
         <Stat label="Valor inventario" value={formatCLP(valorInventario)} />
@@ -90,8 +90,11 @@ export default async function DashboardPage() {
         />
       </div>
 
+      {/* min-w-0 en el hijo: una columna de grid es min-content por defecto y
+          se ensancha más allá del contenedor si el contenido no puede encoger. */}
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <GlassPanel
+          className="min-w-0"
           title="Últimos cálculos"
           actions={
             <Link
@@ -120,11 +123,13 @@ export default async function DashboardPage() {
                     href={`/dashboard/calculos/${print.id}`}
                     className="glass-row flex items-center justify-between gap-4 px-4 py-3 transition hover:bg-white/[0.08]"
                   >
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-white/90">
                         {print.nombre_proyecto}
                       </p>
-                      <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted">
+                      {/* min-w-0: es flex, y sin esto el span interno impone su
+                          ancho de min-content y ensancha todo el panel. */}
+                      <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted">
                         {print.printer_id && (
                           <span
                             className="h-2 w-2 shrink-0 rounded-full border border-white/25"
@@ -206,7 +211,7 @@ function Stat({
   tone?: "normal" | "warn";
 }) {
   return (
-    <div className="glass-panel px-5 py-4">
+    <div className="glass-panel px-4 py-3.5 sm:px-5 sm:py-4">
       <p className="text-xs tracking-wide text-muted uppercase">{label}</p>
       <p
         className={`num mt-1.5 text-xl font-semibold ${

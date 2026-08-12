@@ -78,7 +78,7 @@ export function PrinterForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="field-label" htmlFor="marca">
             Marca
@@ -105,7 +105,7 @@ export function PrinterForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="field-label" htmlFor="consumo_w">
             Consumo
@@ -152,7 +152,7 @@ export function PrinterForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="field-label" htmlFor="tarifa_mano_obra_clp_hora">
             Mano de obra

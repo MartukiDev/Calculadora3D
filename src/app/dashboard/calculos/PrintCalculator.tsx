@@ -436,9 +436,11 @@ export function PrintCalculator({
             {draft.seleccion.map((slot, index) => {
               const f = filamentosPorId.get(slot.filament_id);
               return (
+                // En mobile los gramos bajan a una fila propia: con el select y
+                // el input en la misma línea, el nombre del filamento no entra.
                 <div
                   key={index}
-                  className="grid grid-cols-[auto_1fr_7rem_auto] items-center gap-3"
+                  className="grid grid-cols-[auto_1fr_auto] items-center gap-3 sm:grid-cols-[auto_1fr_7rem_auto]"
                 >
                   <span
                     className="h-9 w-9 rounded-full border border-white/20 shadow-[inset_0_2px_4px_rgba(255,255,255,0.3)]"
@@ -452,7 +454,7 @@ export function PrintCalculator({
                     onChange={(e) =>
                       updateSeleccion(index, { filament_id: e.target.value })
                     }
-                    className="field-input"
+                    className="field-input min-w-0"
                     aria-label={`Filamento ${index + 1}`}
                   >
                     <option value="" className="bg-[#1a1e25]">
@@ -469,7 +471,7 @@ export function PrintCalculator({
                       </option>
                     ))}
                   </select>
-                  <div className="relative">
+                  <div className="relative col-span-3 row-start-2 sm:col-span-1 sm:col-start-3 sm:row-start-1">
                     <input
                       type="number"
                       step="0.1"
@@ -496,7 +498,7 @@ export function PrintCalculator({
                             : draft.seleccion.filter((_, i) => i !== index),
                       })
                     }
-                    className="rounded-lg px-2 py-2 text-muted transition hover:bg-white/[0.06] hover:text-white/85"
+                    className="col-start-3 row-start-1 rounded-lg px-2 py-2 text-muted transition hover:bg-white/[0.06] hover:text-white/85 sm:col-start-4"
                     aria-label="Quitar filamento"
                   >
                     ✕

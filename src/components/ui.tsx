@@ -89,19 +89,23 @@ export function Modal({
   if (!open) return null;
 
   return (
+    // overflow-y-auto + min-h-full: un formulario más alto que la pantalla
+    // scrollea en vez de quedar cortado, y si cabe sigue centrado.
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-label={title}
       onClick={onClose}
     >
-      <div
-        className="glass-panel w-full max-w-md p-6"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="mb-3 text-lg font-semibold text-white/95">{title}</h3>
-        {children}
+      <div className="flex min-h-full items-center justify-center">
+        <div
+          className="glass-panel w-full max-w-md p-5 sm:p-6"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h3 className="mb-3 text-lg font-semibold text-white/95">{title}</h3>
+          {children}
+        </div>
       </div>
     </div>
   );

@@ -49,7 +49,7 @@ export function HistoryFilters({
   const hayFiltros = status !== "todos" || q || desde || hasta || printer;
 
   return (
-    <div className="glass-panel flex flex-wrap items-end gap-3 !p-4">
+    <div className="glass-panel space-y-3 !p-4 sm:flex sm:flex-wrap sm:items-end sm:gap-3 sm:space-y-0">
       <div className="flex gap-1">
         {STATUSES.map((s) => (
           <button
@@ -67,7 +67,7 @@ export function HistoryFilters({
         ))}
       </div>
 
-      <div className="min-w-[12rem] flex-1">
+      <div className="sm:min-w-[12rem] sm:flex-1">
         <label className="field-label" htmlFor="q">
           Buscar
         </label>
@@ -80,53 +80,56 @@ export function HistoryFilters({
         />
       </div>
 
-      {impresoras.length > 1 && (
-        <div className="min-w-[10rem]">
-          <label className="field-label" htmlFor="printer">
-            Impresora
-          </label>
-          <select
-            id="printer"
-            value={printer}
-            onChange={(e) => push({ printer: e.target.value })}
-            className="field-input !py-2"
-          >
-            <option value="" className="bg-[#1a1e25]">
-              Todas
-            </option>
-            {impresoras.map((p) => (
-              <option key={p.id} value={p.id} className="bg-[#1a1e25]">
-                {p.nombre}
+      {/* sm:contents disuelve la grilla en desktop y devuelve los campos al flex. */}
+      <div className="grid grid-cols-2 gap-3 sm:contents">
+        {impresoras.length > 1 && (
+          <div className="col-span-2 sm:min-w-[10rem]">
+            <label className="field-label" htmlFor="printer">
+              Impresora
+            </label>
+            <select
+              id="printer"
+              value={printer}
+              onChange={(e) => push({ printer: e.target.value })}
+              className="field-input !py-2"
+            >
+              <option value="" className="bg-[#1a1e25]">
+                Todas
               </option>
-            ))}
-          </select>
+              {impresoras.map((p) => (
+                <option key={p.id} value={p.id} className="bg-[#1a1e25]">
+                  {p.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div>
+          <label className="field-label" htmlFor="desde">
+            Desde
+          </label>
+          <input
+            id="desde"
+            type="date"
+            value={desde}
+            onChange={(e) => push({ desde: e.target.value })}
+            className="field-input !py-2"
+          />
         </div>
-      )}
 
-      <div>
-        <label className="field-label" htmlFor="desde">
-          Desde
-        </label>
-        <input
-          id="desde"
-          type="date"
-          value={desde}
-          onChange={(e) => push({ desde: e.target.value })}
-          className="field-input !py-2"
-        />
-      </div>
-
-      <div>
-        <label className="field-label" htmlFor="hasta">
-          Hasta
-        </label>
-        <input
-          id="hasta"
-          type="date"
-          value={hasta}
-          onChange={(e) => push({ hasta: e.target.value })}
-          className="field-input !py-2"
-        />
+        <div>
+          <label className="field-label" htmlFor="hasta">
+            Hasta
+          </label>
+          <input
+            id="hasta"
+            type="date"
+            value={hasta}
+            onChange={(e) => push({ hasta: e.target.value })}
+            className="field-input !py-2"
+          />
+        </div>
       </div>
 
       {hayFiltros && (
@@ -136,7 +139,7 @@ export function HistoryFilters({
             setBusqueda("");
             router.push("/dashboard/calculos");
           }}
-          className="btn-ghost !py-2 text-xs"
+          className="btn-ghost w-full !py-2 text-xs sm:w-auto"
         >
           Limpiar
         </button>

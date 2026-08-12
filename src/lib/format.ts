@@ -37,3 +37,25 @@ export function formatGramos(value: number | string | null | undefined): string 
 export function formatHoras(value: number | string | null | undefined): string {
   return `${formatNumber(value)} h`;
 }
+
+/**
+ * Fecha de hoy como YYYY-MM-DD en horario de Chile.
+ *
+ * El servidor corre en UTC, así que `new Date()` a fin de mes puede caer en el
+ * mes siguiente y arruinar el rango por defecto de los reportes. "en-CA" produce
+ * justo el formato ISO que esperan los <input type="date">.
+ */
+const isoFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Santiago",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+export function hoyISO(): string {
+  return isoFormatter.format(new Date());
+}
+
+export function inicioDeMesISO(): string {
+  return `${hoyISO().slice(0, 7)}-01`;
+}

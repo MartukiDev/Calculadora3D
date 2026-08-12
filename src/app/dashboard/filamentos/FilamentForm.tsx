@@ -35,7 +35,7 @@ export function FilamentForm({
     <form action={formAction} className="space-y-4">
       {filament && <input type="hidden" name="id" value={filament.id} />}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="field-label" htmlFor="marca">
             Marca
@@ -116,7 +116,7 @@ export function FilamentForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="field-label" htmlFor="costo_clp_kg">
             Costo por kilo
