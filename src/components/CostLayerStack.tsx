@@ -76,11 +76,14 @@ export function CostLayerStack({
           label={`Precio neto (margen ${margenPct}%)`}
           value={formatCLP(breakdown.precioNeto)}
         />
+        {/* El IVA no se guarda: es exactamente lo que el precio final agrega sobre el neto. */}
+        <Row
+          label={`IVA (${ivaPct}%)`}
+          value={`+ ${formatCLP(breakdown.precioFinalConIva - breakdown.precioNeto)}`}
+        />
         <div className="my-3 h-px bg-white/12" />
         <div className="flex items-baseline justify-between gap-3">
-          <span className="text-sm font-medium text-white/85">
-            Precio final (IVA {ivaPct}%)
-          </span>
+          <span className="text-sm font-medium text-white/85">Precio final</span>
           <span className="num text-2xl font-semibold text-accent">
             {formatCLP(breakdown.precioFinalConIva)}
           </span>

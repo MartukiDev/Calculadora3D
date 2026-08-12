@@ -157,6 +157,18 @@ export default async function CalculosPage({
                   </div>
 
                   <div className="text-right">
+                    <p className="text-xs text-muted">
+                      IVA ({Number(print.iva_pct)}%)
+                    </p>
+                    <p className="num text-sm text-white/80">
+                      {formatCLP(
+                        Number(print.precio_final_con_iva) -
+                          Number(print.precio_neto),
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="text-right">
                     <p className="text-xs text-muted">Precio final</p>
                     <p className="num text-sm font-semibold text-white/95">
                       {formatCLP(print.precio_final_con_iva)}
