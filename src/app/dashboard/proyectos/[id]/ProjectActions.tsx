@@ -3,48 +3,50 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import {
-  deletePrint,
-  lanzarImpresion,
+  deleteProject,
+  lanzarProyecto,
   type ActionState,
 } from "@/app/dashboard/actions";
 import { Alert, Modal, SubmitButton } from "@/components/ui";
-import type { PrintStatus } from "@/lib/types";
+import type { ProjectStatus } from "@/lib/types";
 
-export function PrintActions({
-  printId,
+export function ProjectActions({
+  projectId,
   status,
-  stockInsuficiente,
-  enProyecto,
+  cantidad,
+  sinCalculo,
+  hayFaltantes,
 }: {
-  printId: string;
-  status: PrintStatus;
-  stockInsuficiente: boolean;
-  /** Dentro de un proyecto el stock lo descuenta el proyecto, que sabe la cantidad. */
-  enProyecto: boolean;
+  projectId: string;
+  status: ProjectStatus;
+  cantidad: number;
+  sinCalculo: boolean;
+  hayFaltantes: boolean;
 }) {
   const [confirmLanzar, setConfirmLanzar] = useState(false);
   const [confirmBorrar, setConfirmBorrar] = useState(false);
   const [state, formAction] = useActionState<ActionState, FormData>(
-    lanzarImpresion,
+    lanzarProyecto,
     {},
   );
 
   // Al confirmarse el lanzamiento el modal se cierra solo: no hace falta un efecto.
   const modalLanzarAbierto = confirmLanzar && !state.ok;
 
-  if (status === "lanzada") {
+  if (status === "lanzado") {
     return (
-      <div className="flex gap-2">
-        <Link href="/dashboard/calculos/nuevo" className="btn-ghost">
-          Nuevo cálculo
-        </Link>
-      </div>
+      <Link href="/dashboard/proyectos/nuevo" className="btn-ghost">
+        Nuevo proyecto
+      </Link>
     );
   }
 
   return (
     <div className="flex flex-wrap gap-2">
-      <Link href={`/dashboard/calculos/${printId}/editar`} className="btn-ghost">
+      <Link
+        href={`/dashboard/proyectos/${projectId}/editar`}
+        className="btn-ghost"
+      >
         Editar
       </Link>
       <button
@@ -54,15 +56,15 @@ export function PrintActions({
       >
         Eliminar
       </button>
-      {!enProyecto && (
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={() => setConfirmLanzar(true)}
-        >
-          Lanzar impresión
-        </button>
-      )}
+      <button
+        type="button"
+        className="btn-primary"
+        disabled={sinCalculo}
+        title={sinCalculo ? "Asocia un cálculo antes de lanzar" : undefined}
+        onClick={() => setConfirmLanzar(true)}
+      >
+        Lanzar proyecto
+      </button>
 
       {state.error && (
         <div className="w-full">
@@ -73,19 +75,22 @@ export function PrintActions({
       <Modal
         open={modalLanzarAbierto}
         onClose={() => setConfirmLanzar(false)}
-        title="Lanzar impresión"
+        title="Lanzar proyecto"
       >
         <p className="text-sm text-white/75">
-          Se descontará del inventario los gramos de cada filamento de este
-          cálculo y la impresión pasará a estado <strong>lanzada</strong>. Esta
-          acción no se puede deshacer.
+          Se descontará del inventario la receta completa{" "}
+          <strong>multiplicada por {cantidad}</strong>: los filamentos y los
+          insumos del cálculo, más los insumos de armado. El cálculo pasará a{" "}
+          <strong>lanzada</strong> y el proyecto quedará cerrado con sus costos
+          congelados. Esta acción no se puede deshacer.
         </p>
 
-        {stockInsuficiente && (
+        {hayFaltantes && (
           <div className="mt-4">
             <Alert tone="warn">
-              Algún filamento quedará con stock negativo. Revisa el inventario
-              antes de continuar.
+              A algún material no le alcanza el stock para las {cantidad}{" "}
+              unidades y quedará negativo. Revisa la lista de materiales antes de
+              continuar.
             </Alert>
           </div>
         )}
@@ -97,7 +102,7 @@ export function PrintActions({
         )}
 
         <form action={formAction} className="mt-5 flex justify-end gap-2">
-          <input type="hidden" name="id" value={printId} />
+          <input type="hidden" name="id" value={projectId} />
           <button
             type="button"
             className="btn-ghost"
@@ -114,14 +119,14 @@ export function PrintActions({
       <Modal
         open={confirmBorrar}
         onClose={() => setConfirmBorrar(false)}
-        title="Eliminar cálculo"
+        title="Eliminar proyecto"
       >
         <p className="text-sm text-white/75">
-          Se eliminará este borrador de forma permanente. No afecta el stock,
-          porque todavía no fue lanzado.
+          Se eliminará este borrador de forma permanente. No afecta el stock ni
+          el cálculo asociado: ese queda libre para usarse en otro proyecto.
         </p>
-        <form action={deletePrint} className="mt-5 flex justify-end gap-2">
-          <input type="hidden" name="id" value={printId} />
+        <form action={deleteProject} className="mt-5 flex justify-end gap-2">
+          <input type="hidden" name="id" value={projectId} />
           <button
             type="button"
             className="btn-ghost"

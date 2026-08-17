@@ -3,7 +3,8 @@
 App web personal para calcular el costo real de cada impresión 3D, administrar
 varias impresoras con sus propios costos, gestionar el inventario de filamentos
 (hasta 4 por impresión, multi-color) y de insumos de taller (tags NFC, argollas,
-imanes, boquillas) y descontar stock automáticamente al lanzar una impresión.
+imanes, boquillas), armar proyectos que producen un mismo cálculo en cantidad y
+descontar stock automáticamente al lanzar.
 
 **Stack:** Next.js 16 (App Router) · TypeScript · Tailwind CSS v4 · Supabase
 (Auth + Postgres + RLS). El detalle funcional y de diseño está en
@@ -32,10 +33,10 @@ RPC `security definer`.
 ### 2. Ejecutar el esquema
 
 En el **SQL Editor** de Supabase, corre [`supabase/schema.sql`](supabase/schema.sql).
-Crea las tablas (`user_settings`, `printers`, `filaments`, `prints`), las políticas
-RLS de aislamiento por usuario, el trigger que al registrarse deja lista la
-configuración y una primera impresora, y las funciones `lanzar_impresion` y
-`set_impresora_default`.
+Crea las tablas (`user_settings`, `printers`, `filaments`, `inventory_items`,
+`prints`, `projects`), las políticas RLS de aislamiento por usuario, el trigger que
+al registrarse deja lista la configuración y una primera impresora, y las funciones
+`lanzar_impresion`, `lanzar_proyecto` y `set_impresora_default`.
 
 El archivo es **idempotente**: se puede volver a correr sin romper nada, y así se
 aplican los cambios de esquema (no hay herramienta de migraciones). Si vienes de
@@ -149,6 +150,27 @@ transacción descuenta los gramos de cada filamento y cambia el estado a
 `lanzada`. Es irreversible sobre el stock, por eso pide confirmación explícita y
 los cálculos lanzados ya no se pueden editar.
 
+**Un proyecto es un producto vendible**: toma un cálculo, lo repite las unidades
+que vayas a producir y le suma los insumos que lleva el armado y no la impresión
+(pegamento, caja, manual). Todo lo que declara es la **receta de una unidad**, así
+que entrega costo unitario y costo del lote a la vez:
+
+```
+costo_unitario = costo_total_del_calculo + Σ (cantidad_i × costo_unitario_i)
+costo_lote     = costo_unitario × unidades
+precio_neto    = costo_lote × (1 + margen_pct / 100)     ← margen del PROYECTO
+precio_final   = precio_neto × (1 + iva_pct / 100)
+```
+
+El margen del cálculo se ignora dentro del proyecto: la pieza cuesta, el proyecto
+vende. La pantalla de materiales cruza los filamentos e insumos del cálculo con los
+de armado, los suma en una fila por material × unidades y los compara contra el
+stock, para que sepas qué comprar antes de empezar.
+
+**Lanzar el proyecto** (`lanzar_proyecto`) descuenta esa receta completa × unidades
+y congela los costos. Un cálculo que pertenece a un proyecto no se lanza suelto: lo
+descontaría dos veces.
+
 ## Estructura
 
 ```
@@ -163,9 +185,12 @@ src/
       filamentos/    CRUD de inventario de filamento
       inventario/    CRUD de insumos (NFC, argollas, boquillas…)
       calculos/      calculadora, historial y detalle
-  components/        GlassPanel · CostLayerStack · FilamentChip · ui
+      proyectos/     producto en cantidad, materiales y precio de venta
+      reportes/      totales por período e impresora
+  components/        GlassPanel · CostLayerStack · ProjectCostStack ·
+                     FilamentChip · ui
     landing/         secciones de la portada
-  lib/               calc · format · cache · types · supabase/
+  lib/               calc · project · report · format · cache · types · supabase/
   proxy.ts           refresco de sesión y protección de rutas
 supabase/schema.sql  tablas, RLS, trigger y RPC
 ```

@@ -12,7 +12,13 @@ import {
   formatGramos,
   formatHoras,
 } from "@/lib/format";
-import type { Filament, InventoryItem, Print, Printer } from "@/lib/types";
+import type {
+  Filament,
+  InventoryItem,
+  Print,
+  Printer,
+  Project,
+} from "@/lib/types";
 import { ClearDraft } from "../ClearDraft";
 import { PrintActions } from "./PrintActions";
 
@@ -43,24 +49,39 @@ export default async function CalculoDetallePage({
   const filamentIds = (print.filamentos_usados ?? []).map((f) => f.filament_id);
   const insumoIds = (print.insumos_usados ?? []).map((i) => i.item_id);
 
-  const [{ data: filamentsData }, { data: printerData }, { data: itemsData }] =
-    await Promise.all([
-      filamentIds.length
-        ? supabase.from("filaments").select("*").in("id", filamentIds)
-        : Promise.resolve({ data: [] }),
-      print.printer_id
-        ? supabase
-            .from("printers")
-            .select("*")
-            .eq("id", print.printer_id)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
-      insumoIds.length
-        ? supabase.from("inventory_items").select("*").in("id", insumoIds)
-        : Promise.resolve({ data: [] }),
-    ]);
+  const [
+    { data: filamentsData },
+    { data: printerData },
+    { data: itemsData },
+    { data: projectData },
+  ] = await Promise.all([
+    filamentIds.length
+      ? supabase.from("filaments").select("*").in("id", filamentIds)
+      : Promise.resolve({ data: [] }),
+    print.printer_id
+      ? supabase
+          .from("printers")
+          .select("*")
+          .eq("id", print.printer_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    insumoIds.length
+      ? supabase.from("inventory_items").select("*").in("id", insumoIds)
+      : Promise.resolve({ data: [] }),
+    // Si el cálculo está dentro de un proyecto, el stock se descuenta desde ahí:
+    // el proyecto es el que sabe cuántas unidades se van a producir.
+    supabase
+      .from("projects")
+      .select("id, nombre, cantidad")
+      .eq("print_id", id)
+      .maybeSingle(),
+  ]);
 
   const impresora = printerData as Printer | null;
+  const proyecto = projectData as Pick<
+    Project,
+    "id" | "nombre" | "cantidad"
+  > | null;
 
   const filamentos = new Map(
     ((filamentsData ?? []) as Filament[]).map((f) => [f.id, f]),
@@ -126,10 +147,42 @@ export default async function CalculoDetallePage({
           printId={print.id}
           status={print.status}
           stockInsuficiente={stockInsuficiente.length > 0}
+          enProyecto={Boolean(proyecto)}
         />
       </div>
 
       {guardado && <Alert tone="success">Cálculo guardado como borrador.</Alert>}
+
+      {proyecto && (
+        <Alert tone="info">
+          Este cálculo es parte del proyecto{" "}
+          <Link
+            href={`/dashboard/proyectos/${proyecto.id}`}
+            className="font-medium underline"
+          >
+            {proyecto.nombre}
+          </Link>
+          {print.status === "borrador" && (
+            <>
+              {" "}
+              ({Number(proyecto.cantidad)} unidades). El stock se descuenta al
+              lanzar el proyecto, no desde acá.
+            </>
+          )}
+        </Alert>
+      )}
+
+      {!proyecto && print.status === "borrador" && (
+        <p className="text-sm text-muted">
+          ¿Vas a producir varias unidades?{" "}
+          <Link
+            href={`/dashboard/proyectos/nuevo?calculo=${print.id}`}
+            className="underline hover:text-white/85"
+          >
+            Crear un proyecto con este cálculo
+          </Link>
+        </p>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
         <div className="space-y-6">

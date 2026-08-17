@@ -119,6 +119,50 @@ alter table public.prints
 alter table public.prints
   add column if not exists costo_insumos numeric(10,2) not null default 0;
 
+-- Proyectos: un producto vendible con su propio margen.
+--
+-- Un proyecto es UN cálculo repetido `cantidad` veces más los insumos de armado
+-- y embalaje que no pertenecen a la impresión (pegamento, caja, manual). Todo lo
+-- que declara es la receta de UNA unidad y `cantidad` multiplica la receta
+-- completa: así el mismo proyecto entrega costo unitario y costo del lote sin
+-- que el usuario tenga que multiplicar nada a mano.
+create table if not exists public.projects (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  nombre text not null,
+  descripcion text,
+  color_hex text not null default '#ff7a3d',
+  -- Un solo cálculo por proyecto: el proyecto es un producto en cantidad, no un
+  -- ensamblaje de piezas distintas. Nullable para poder crear el proyecto antes
+  -- que el cálculo, y para que borrar el cálculo no se lleve el proyecto puesto.
+  print_id uuid references public.prints(id) on delete set null,
+  cantidad numeric(10,2) not null default 1 check (cantidad > 0),
+  -- Mismo shape que prints.insumos_usados y por la misma razón: cada línea
+  -- congela costo_unitario para que subir el precio de las argollas no reescriba
+  -- proyectos viejos.
+  insumos_usados jsonb not null default '[]',
+  -- El margen es del proyecto, no del cálculo: la pieza cuesta, el proyecto
+  -- vende. El margen_pct del print se ignora acá y solo sirve como referencia
+  -- de cuánto valdría venderlo suelto.
+  margen_pct numeric(5,2) not null default 0
+    check (margen_pct >= 0 and margen_pct <= 500),
+  iva_pct numeric(5,2) not null default 19,
+  status text not null default 'borrador' check (status in ('borrador','lanzado')),
+  notas text,
+  -- Congelados al lanzar. Mientras es borrador el costo se deriva en vivo del
+  -- cálculo asociado; una vez lanzado tiene que sobrevivir a que ese cálculo se
+  -- edite o se elimine, igual que hacen las filas de prints.
+  costo_pieza_unitario numeric(12,2) not null default 0,
+  costo_insumos_unitario numeric(12,2) not null default 0,
+  costo_unitario numeric(12,2) not null default 0,
+  costo_total numeric(12,2) not null default 0,
+  precio_neto numeric(12,2) not null default 0,
+  precio_final_con_iva numeric(12,2) not null default 0,
+  fecha_lanzamiento timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create index if not exists prints_user_status_idx on public.prints (user_id, status);
 create index if not exists prints_user_printer_idx on public.prints (user_id, printer_id);
 create index if not exists filaments_user_activo_idx on public.filaments (user_id, activo);
@@ -126,9 +170,16 @@ create index if not exists printers_user_activo_idx on public.printers (user_id,
 create index if not exists inventory_items_user_activo_idx
   on public.inventory_items (user_id, activo);
 
+create index if not exists projects_user_status_idx on public.projects (user_id, status);
+
 -- Una sola impresora predeterminada por usuario, garantizado por el motor.
 create unique index if not exists printers_user_default_idx
   on public.printers (user_id) where es_default;
+
+-- Un cálculo pertenece a lo sumo a un proyecto. Sin esto, dos proyectos podrían
+-- apuntar al mismo cálculo y descontar su stock dos veces.
+create unique index if not exists projects_print_idx
+  on public.projects (print_id) where print_id is not null;
 
 -- ------------------------------------------------------------
 -- Migración a multi-impresora (idempotente)
@@ -186,6 +237,7 @@ alter table public.filaments enable row level security;
 alter table public.prints enable row level security;
 alter table public.printers enable row level security;
 alter table public.inventory_items enable row level security;
+alter table public.projects enable row level security;
 
 drop policy if exists "user_settings_isolation" on public.user_settings;
 create policy "user_settings_isolation" on public.user_settings
@@ -205,6 +257,10 @@ create policy "prints_isolation" on public.prints
 
 drop policy if exists "inventory_items_isolation" on public.inventory_items;
 create policy "inventory_items_isolation" on public.inventory_items
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+drop policy if exists "projects_isolation" on public.projects;
+create policy "projects_isolation" on public.projects
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- ------------------------------------------------------------
@@ -240,10 +296,107 @@ create trigger on_auth_user_created
   for each row execute function public.handle_new_user();
 
 -- ------------------------------------------------------------
+-- Descuento de stock — helpers internos
+--
+-- Los extraemos porque hay dos formas de consumir stock (lanzar una impresión
+-- suelta y lanzar un proyecto de N unidades) y tienen que descontar exactamente
+-- igual. El multiplicador es lo único que cambia entre una y otra.
+--
+-- Van sin `security definer` a propósito, aunque los llame quien sí lo es: como
+-- reciben el user_id por parámetro, ser definer significaría que cualquier fuga
+-- de execute deja descontar el stock de otro usuario. Como invoker, llamarlos
+-- directo desde el cliente no pasa de la RLS. Llamados desde los RPC de abajo
+-- corren igual con los privilegios del definer, así que no cambia nada.
+-- ------------------------------------------------------------
+
+create or replace function public.descontar_insumos(
+  p_user_id uuid,
+  p_insumos jsonb,
+  p_multiplicador numeric
+)
+returns void
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_item jsonb;
+  v_stock_actual numeric;
+begin
+  for v_item in select * from jsonb_array_elements(coalesce(p_insumos, '[]'::jsonb))
+  loop
+    select stock into v_stock_actual
+    from public.inventory_items
+    where id = (v_item->>'item_id')::uuid and user_id = p_user_id
+    for update;
+
+    if v_stock_actual is null then
+      raise exception 'Insumo % no encontrado', v_item->>'item_id';
+    end if;
+
+    update public.inventory_items
+    set stock = stock - (v_item->>'cantidad')::numeric * p_multiplicador,
+        updated_at = now()
+    where id = (v_item->>'item_id')::uuid and user_id = p_user_id;
+  end loop;
+end;
+$$;
+
+revoke all on function public.descontar_insumos(uuid, jsonb, numeric) from public;
+
+/* Descuenta filamentos e insumos de un cálculo, multiplicados por p_multiplicador. */
+create or replace function public.descontar_stock_print(
+  p_print_id uuid,
+  p_user_id uuid,
+  p_multiplicador numeric
+)
+returns void
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_filamentos jsonb;
+  v_insumos jsonb;
+  v_item jsonb;
+  v_stock_actual numeric;
+begin
+  select filamentos_usados, coalesce(insumos_usados, '[]'::jsonb)
+    into v_filamentos, v_insumos
+  from public.prints
+  where id = p_print_id and user_id = p_user_id
+  for update;
+
+  if v_filamentos is null then
+    raise exception 'Cálculo % no encontrado', p_print_id;
+  end if;
+
+  for v_item in select * from jsonb_array_elements(v_filamentos)
+  loop
+    select stock_gramos into v_stock_actual
+    from public.filaments
+    where id = (v_item->>'filament_id')::uuid and user_id = p_user_id
+    for update;
+
+    if v_stock_actual is null then
+      raise exception 'Filamento % no encontrado', v_item->>'filament_id';
+    end if;
+
+    update public.filaments
+    set stock_gramos = stock_gramos
+                     - (v_item->>'gramos')::numeric * p_multiplicador,
+        updated_at = now()
+    where id = (v_item->>'filament_id')::uuid and user_id = p_user_id;
+  end loop;
+
+  perform public.descontar_insumos(p_user_id, v_insumos, p_multiplicador);
+end;
+$$;
+
+revoke all on function public.descontar_stock_print(uuid, uuid, numeric) from public;
+
+-- ------------------------------------------------------------
 -- RPC: lanzar impresión y descontar stock (atómico)
 --
--- Único camino que toca el stock, tanto de filamentos como de insumos: los dos
--- descuentos y el cambio de estado ocurren en la misma transacción.
+-- Los descuentos y el cambio de estado ocurren en la misma transacción.
 -- ------------------------------------------------------------
 
 create or replace function public.lanzar_impresion(p_print_id uuid)
@@ -254,13 +407,8 @@ set search_path = public
 as $$
 declare
   v_user_id uuid;
-  v_filamentos jsonb;
-  v_insumos jsonb;
-  v_item jsonb;
-  v_stock_actual numeric;
 begin
-  select user_id, filamentos_usados, coalesce(insumos_usados, '[]'::jsonb)
-    into v_user_id, v_filamentos, v_insumos
+  select user_id into v_user_id
   from public.prints
   where id = p_print_id and status = 'borrador'
   for update;
@@ -269,39 +417,13 @@ begin
     raise exception 'No autorizado o impresión no encontrada/ya lanzada';
   end if;
 
-  for v_item in select * from jsonb_array_elements(v_filamentos)
-  loop
-    select stock_gramos into v_stock_actual
-    from public.filaments
-    where id = (v_item->>'filament_id')::uuid and user_id = v_user_id
-    for update;
+  -- Un cálculo dentro de un proyecto se lanza desde el proyecto, que sabe la
+  -- cantidad. Permitir las dos vías descontaría el stock dos veces.
+  if exists (select 1 from public.projects where print_id = p_print_id) then
+    raise exception 'Este cálculo pertenece a un proyecto: lánzalo desde ahí';
+  end if;
 
-    if v_stock_actual is null then
-      raise exception 'Filamento % no encontrado', v_item->>'filament_id';
-    end if;
-
-    update public.filaments
-    set stock_gramos = stock_gramos - (v_item->>'gramos')::numeric,
-        updated_at = now()
-    where id = (v_item->>'filament_id')::uuid and user_id = v_user_id;
-  end loop;
-
-  for v_item in select * from jsonb_array_elements(v_insumos)
-  loop
-    select stock into v_stock_actual
-    from public.inventory_items
-    where id = (v_item->>'item_id')::uuid and user_id = v_user_id
-    for update;
-
-    if v_stock_actual is null then
-      raise exception 'Insumo % no encontrado', v_item->>'item_id';
-    end if;
-
-    update public.inventory_items
-    set stock = stock - (v_item->>'cantidad')::numeric,
-        updated_at = now()
-    where id = (v_item->>'item_id')::uuid and user_id = v_user_id;
-  end loop;
+  perform public.descontar_stock_print(p_print_id, v_user_id, 1);
 
   update public.prints
   set status = 'lanzada', fecha_lanzamiento = now(), updated_at = now()
@@ -311,6 +433,97 @@ $$;
 
 revoke all on function public.lanzar_impresion(uuid) from public;
 grant execute on function public.lanzar_impresion(uuid) to authenticated;
+
+-- ------------------------------------------------------------
+-- RPC: lanzar proyecto (atómico)
+--
+-- Descuenta la receta completa multiplicada por la cantidad —el cálculo, sus
+-- insumos y los insumos de armado del proyecto— y congela los costos.
+--
+-- El congelado ocurre acá y no en la server action porque los montos tienen que
+-- calcularse sobre las mismas filas que se acaban de bloquear: si el precio de
+-- un insumo cambia entre el cálculo y el descuento, el proyecto guardaría un
+-- costo que no corresponde al stock que consumió.
+-- ------------------------------------------------------------
+
+create or replace function public.lanzar_proyecto(p_project_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid;
+  v_print_id uuid;
+  v_cantidad numeric;
+  v_insumos jsonb;
+  v_margen numeric;
+  v_iva numeric;
+  v_costo_pieza numeric;
+  v_costo_insumos numeric;
+  v_costo_unitario numeric;
+  v_costo_total numeric;
+  v_precio_neto numeric;
+begin
+  select user_id, print_id, cantidad, coalesce(insumos_usados, '[]'::jsonb),
+         margen_pct, iva_pct
+    into v_user_id, v_print_id, v_cantidad, v_insumos, v_margen, v_iva
+  from public.projects
+  where id = p_project_id and status = 'borrador'
+  for update;
+
+  if v_user_id is null or v_user_id != auth.uid() then
+    raise exception 'No autorizado o proyecto no encontrado/ya lanzado';
+  end if;
+
+  if v_print_id is null then
+    raise exception 'El proyecto no tiene un cálculo asociado';
+  end if;
+
+  select costo_total into v_costo_pieza
+  from public.prints
+  where id = v_print_id and user_id = v_user_id and status = 'borrador'
+  for update;
+
+  if v_costo_pieza is null then
+    raise exception 'El cálculo del proyecto no existe o ya fue lanzado';
+  end if;
+
+  perform public.descontar_stock_print(v_print_id, v_user_id, v_cantidad);
+  perform public.descontar_insumos(v_user_id, v_insumos, v_cantidad);
+
+  -- Los insumos de armado no pasan por el % de desperdicio: ese porcentaje
+  -- modela fallas de impresión y ya está cobrado dentro de costo_total del
+  -- cálculo. Una caja de embalaje no se pierde porque falle una pieza.
+  select coalesce(
+    sum((i->>'cantidad')::numeric * (i->>'costo_unitario')::numeric), 0)
+    into v_costo_insumos
+  from jsonb_array_elements(v_insumos) as i;
+
+  v_costo_unitario := v_costo_pieza + v_costo_insumos;
+  v_costo_total := v_costo_unitario * v_cantidad;
+  v_precio_neto := v_costo_total * (1 + v_margen / 100);
+
+  update public.prints
+  set status = 'lanzada', fecha_lanzamiento = now(), updated_at = now()
+  where id = v_print_id;
+
+  update public.projects
+  set status = 'lanzado',
+      fecha_lanzamiento = now(),
+      costo_pieza_unitario = round(v_costo_pieza, 2),
+      costo_insumos_unitario = round(v_costo_insumos, 2),
+      costo_unitario = round(v_costo_unitario, 2),
+      costo_total = round(v_costo_total, 2),
+      precio_neto = round(v_precio_neto, 2),
+      precio_final_con_iva = round(v_precio_neto * (1 + v_iva / 100), 2),
+      updated_at = now()
+  where id = p_project_id;
+end;
+$$;
+
+revoke all on function public.lanzar_proyecto(uuid) from public;
+grant execute on function public.lanzar_proyecto(uuid) to authenticated;
 
 -- ------------------------------------------------------------
 -- RPC: marcar impresora predeterminada (atómico)

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { calcularCostos } from "@/lib/calc";
 import {
+  MAX_CANTIDAD_PROYECTO,
   MAX_FILAMENTOS,
   MAX_INSUMOS,
   type FilamentoUsado,
@@ -416,6 +417,62 @@ function parseInsumosSeleccionados(
   }
 }
 
+/**
+ * Convierte "qué insumo y cuánto" en líneas con el costo real de la base.
+ *
+ * El costo unitario y el comportamiento frente al desperdicio salen siempre de
+ * `inventory_items`, nunca del formulario, y quedan congelados en la línea: el
+ * cliente solo previsualiza.
+ */
+async function resolverInsumos(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  seleccionados: { item_id: string; cantidad: number }[],
+): Promise<{ insumos: InsumoUsado[]; error?: string }> {
+  if (seleccionados.length === 0) return { insumos: [] };
+
+  const { data: items, error } = await supabase
+    .from("inventory_items")
+    .select("id, costo_clp_unidad, aplica_desperdicio, usa_en_calculo")
+    .eq("user_id", userId)
+    .in(
+      "id",
+      seleccionados.map((i) => i.item_id),
+    );
+
+  if (error) return { insumos: [], error: error.message };
+
+  // Contra los ids únicos y no contra las líneas: repetir un insumo en dos
+  // filas es válido (se suman), y comparar largos daría un error engañoso.
+  const porId = new Map((items ?? []).map((i) => [i.id, i]));
+  const idsPedidos = new Set(seleccionados.map((i) => i.item_id));
+  if (porId.size !== idsPedidos.size)
+    return {
+      insumos: [],
+      error: "Alguno de los insumos seleccionados ya no existe.",
+    };
+
+  const insumos: InsumoUsado[] = [];
+
+  for (const seleccion of seleccionados) {
+    const item = porId.get(seleccion.item_id)!;
+    if (!item.usa_en_calculo)
+      return {
+        insumos: [],
+        error: "Uno de los insumos está marcado como repuesto de taller.",
+      };
+
+    insumos.push({
+      item_id: seleccion.item_id,
+      cantidad: seleccion.cantidad,
+      costo_unitario: Number(item.costo_clp_unidad),
+      aplica_desperdicio: Boolean(item.aplica_desperdicio),
+    });
+  }
+
+  return { insumos };
+}
+
 export async function savePrint(
   _prev: ActionState,
   formData: FormData,
@@ -471,45 +528,13 @@ export async function savePrint(
   if (!filamentos || filamentos.length !== filamentosUsados.length)
     return { error: "Alguno de los filamentos seleccionados ya no existe." };
 
-  // Mismo criterio con los insumos: el costo unitario y el comportamiento frente
-  // al desperdicio salen de la base, no del formulario, y quedan congelados en
-  // la línea guardada.
-  const insumosUsados: InsumoUsado[] = [];
-
-  if (insumosSeleccionados.length > 0) {
-    const { data: items, error: itemsError } = await supabase
-      .from("inventory_items")
-      .select("id, costo_clp_unidad, aplica_desperdicio, usa_en_calculo")
-      .eq("user_id", user.id)
-      .in(
-        "id",
-        insumosSeleccionados.map((i) => i.item_id),
-      );
-
-    if (itemsError) return { error: itemsError.message };
-
-    // Contra los ids únicos y no contra las líneas: repetir un insumo en dos
-    // filas es válido (se suman), y comparar largos daría un error engañoso.
-    const porId = new Map((items ?? []).map((i) => [i.id, i]));
-    const idsPedidos = new Set(insumosSeleccionados.map((i) => i.item_id));
-    if (porId.size !== idsPedidos.size)
-      return { error: "Alguno de los insumos seleccionados ya no existe." };
-
-    for (const seleccion of insumosSeleccionados) {
-      const item = porId.get(seleccion.item_id)!;
-      if (!item.usa_en_calculo)
-        return {
-          error: "Uno de los insumos está marcado como repuesto de taller.",
-        };
-
-      insumosUsados.push({
-        item_id: seleccion.item_id,
-        cantidad: seleccion.cantidad,
-        costo_unitario: Number(item.costo_clp_unidad),
-        aplica_desperdicio: Boolean(item.aplica_desperdicio),
-      });
-    }
-  }
+  const resueltos = await resolverInsumos(
+    supabase,
+    user.id,
+    insumosSeleccionados,
+  );
+  if (resueltos.error) return { error: resueltos.error };
+  const insumosUsados = resueltos.insumos;
 
   const desperdicioPct = num(formData, "desperdicio_pct");
   const ivaPct = num(formData, "iva_pct", 19);
@@ -615,6 +640,163 @@ export async function deletePrint(formData: FormData) {
     .eq("status", "borrador");
 
   revalidatePath("/dashboard/calculos");
+  revalidatePath("/dashboard/proyectos");
   revalidatePath("/dashboard");
   redirect("/dashboard/calculos");
+}
+
+// ------------------------------------------------------------
+// Proyectos
+// ------------------------------------------------------------
+
+export async function saveProject(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const { supabase, user } = await requireUser();
+
+  const id = str(formData, "id");
+  const nombre = str(formData, "nombre");
+  const colorHex = str(formData, "color_hex") || "#ff7a3d";
+  const printId = str(formData, "print_id");
+  const cantidad = num(formData, "cantidad", 1);
+  const margenPct = num(formData, "margen_pct");
+  const ivaPct = num(formData, "iva_pct", 19);
+  const insumosSeleccionados = parseInsumosSeleccionados(
+    String(formData.get("insumos_usados") ?? "[]"),
+  );
+
+  if (!nombre) return { error: "El nombre del proyecto es obligatorio." };
+  if (!/^#[0-9a-fA-F]{6}$/.test(colorHex))
+    return { error: "El color debe ser un hex válido (#RRGGBB)." };
+  if (cantidad <= 0) return { error: "La cantidad debe ser mayor a 0." };
+  if (cantidad > MAX_CANTIDAD_PROYECTO)
+    return { error: `La cantidad máxima por proyecto es ${MAX_CANTIDAD_PROYECTO}.` };
+  if (margenPct < 0 || margenPct > 500)
+    return { error: "El margen debe estar entre 0 y 500%." };
+  if (ivaPct < 0 || ivaPct > 100)
+    return { error: "El IVA debe estar entre 0 y 100%." };
+  if (insumosSeleccionados.length > MAX_INSUMOS)
+    return { error: `Máximo ${MAX_INSUMOS} insumos de armado por proyecto.` };
+
+  // Un proyecto lanzado ya descontó stock y congeló sus costos: no se reedita.
+  if (id) {
+    const { data: existente } = await supabase
+      .from("projects")
+      .select("status")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!existente) return { error: "El proyecto no existe." };
+    if (existente.status === "lanzado")
+      return { error: "No puedes editar un proyecto ya lanzado." };
+  }
+
+  if (printId) {
+    const { data: print } = await supabase
+      .from("prints")
+      .select("id, status")
+      .eq("id", printId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!print) return { error: "El cálculo seleccionado ya no existe." };
+    // Un cálculo lanzado ya consumió su stock por la vía individual; meterlo a
+    // un proyecto lo descontaría una segunda vez.
+    if (print.status !== "borrador")
+      return {
+        error: "Ese cálculo ya fue lanzado y no puede asociarse a un proyecto.",
+      };
+
+    // El índice único lo garantiza igual, pero atrapado acá el mensaje sirve.
+    const { data: ocupado } = await supabase
+      .from("projects")
+      .select("id, nombre")
+      .eq("user_id", user.id)
+      .eq("print_id", printId)
+      .neq("id", id || "00000000-0000-0000-0000-000000000000")
+      .maybeSingle();
+
+    if (ocupado)
+      return { error: `Ese cálculo ya pertenece al proyecto "${ocupado.nombre}".` };
+  }
+
+  const resueltos = await resolverInsumos(
+    supabase,
+    user.id,
+    insumosSeleccionados,
+  );
+  if (resueltos.error) return { error: resueltos.error };
+
+  const payload = {
+    nombre,
+    descripcion: str(formData, "descripcion") || null,
+    color_hex: colorHex.toLowerCase(),
+    // Vacío significa "todavía sin cálculo", no cadena vacía: la columna es uuid.
+    print_id: printId || null,
+    cantidad,
+    insumos_usados: resueltos.insumos,
+    margen_pct: margenPct,
+    iva_pct: ivaPct,
+    notas: str(formData, "notas") || null,
+    updated_at: new Date().toISOString(),
+  };
+
+  let projectId = id;
+
+  if (id) {
+    const { error } = await supabase
+      .from("projects")
+      .update(payload)
+      .eq("id", id)
+      .eq("user_id", user.id);
+    if (error) return { error: error.message };
+  } else {
+    const { data, error } = await supabase
+      .from("projects")
+      .insert({ ...payload, user_id: user.id, status: "borrador" })
+      .select("id")
+      .single();
+    if (error) return { error: error.message };
+    projectId = data.id;
+  }
+
+  revalidatePath("/dashboard/proyectos");
+  revalidatePath("/dashboard");
+  redirect(`/dashboard/proyectos/${projectId}?guardado=1`);
+}
+
+export async function lanzarProyecto(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const { supabase } = await requireUser();
+  const id = str(formData, "id");
+  if (!id) return { error: "Falta el identificador del proyecto." };
+
+  const { error } = await supabase.rpc("lanzar_proyecto", { p_project_id: id });
+  if (error) return { error: error.message };
+
+  revalidatePath("/dashboard", "layout");
+  return { ok: true, message: "Proyecto lanzado y stock descontado." };
+}
+
+export async function deleteProject(formData: FormData) {
+  const { supabase, user } = await requireUser();
+  const id = str(formData, "id");
+
+  // Solo borradores: un proyecto lanzado es el registro de lo que se produjo.
+  // El cálculo asociado no se toca, solo deja de estar tomado.
+  await supabase
+    .from("projects")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .eq("status", "borrador");
+
+  revalidatePath("/dashboard/proyectos");
+  revalidatePath("/dashboard/calculos");
+  revalidatePath("/dashboard");
+  redirect("/dashboard/proyectos");
 }

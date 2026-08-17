@@ -6,6 +6,7 @@ import type {
   Filament,
   InventoryItem,
   Printer,
+  Project,
   UserSettings,
 } from "./types";
 
@@ -49,6 +50,7 @@ const settingsKey = (userId: string) => `settings_cache:${userId}`;
 const filamentsKey = (userId: string) => `filaments_cache:${userId}`;
 const printersKey = (userId: string) => `printers_cache:${userId}`;
 const inventoryKey = (userId: string) => `inventory_cache:${userId}`;
+const projectsKey = (userId: string) => `projects_cache:${userId}`;
 const draftKey = (userId: string) => `calc_draft:${userId}`;
 
 export const settingsCache = {
@@ -76,6 +78,12 @@ export const inventoryCache = {
   clear: (userId: string) => remove(inventoryKey(userId)),
 };
 
+export const projectsCache = {
+  get: (userId: string) => read<Project[]>(projectsKey(userId)),
+  set: (userId: string, data: Project[]) => write(projectsKey(userId), data),
+  clear: (userId: string) => remove(projectsKey(userId)),
+};
+
 export function getDraft<T>(userId: string): T | null {
   return read<T>(draftKey(userId))?.data ?? null;
 }
@@ -94,5 +102,6 @@ export function clearAllCache(userId: string): void {
   filamentsCache.clear(userId);
   printersCache.clear(userId);
   inventoryCache.clear(userId);
+  projectsCache.clear(userId);
   clearDraft(userId);
 }
