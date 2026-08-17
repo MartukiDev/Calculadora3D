@@ -2,7 +2,12 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { GlassPanel } from "@/components/GlassPanel";
 import { FilamentChip } from "@/components/FilamentChip";
-import { StatusBadge, EmptyState, Alert } from "@/components/ui";
+import {
+  StatusBadge,
+  EmptyState,
+  Alert,
+  UsoPersonalBadge,
+} from "@/components/ui";
 import { formatCantidad, formatCLP, formatDate } from "@/lib/format";
 import {
   STOCK_BAJO_GRAMOS,
@@ -162,10 +167,13 @@ export default async function DashboardPage() {
                         </span>
                       </p>
                     </div>
-                    <div className="flex shrink-0 items-center gap-3">
+                    <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+                      {/* Sin el badge, el monto de un cálculo personal se lee
+                          como precio de venta cuando es su costo. */}
                       <span className="num text-sm text-white/90">
                         {formatCLP(print.precio_final_con_iva)}
                       </span>
+                      {print.uso_personal && <UsoPersonalBadge />}
                       <StatusBadge status={print.status} />
                     </div>
                   </Link>

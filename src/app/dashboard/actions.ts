@@ -510,7 +510,11 @@ export async function savePrint(
 
   if (!printer) return { error: "La impresora seleccionada ya no existe." };
 
-  const margenPct = num(formData, "margen_pct");
+  // Una pieza para uso propio no se vende: el margen y el IVA se anulan acá, en
+  // el servidor, y no confiando en que el cliente haya mandado ceros.
+  const usoPersonal = str(formData, "uso_personal") === "true";
+
+  const margenPct = usoPersonal ? 0 : num(formData, "margen_pct");
   if (margenPct < 0 || margenPct > 500)
     return { error: "El margen debe estar entre 0 y 500%." };
 
@@ -536,8 +540,10 @@ export async function savePrint(
   if (resueltos.error) return { error: resueltos.error };
   const insumosUsados = resueltos.insumos;
 
+  // El desperdicio no depende de para quién sea la pieza: si falla, el filamento
+  // se perdió igual.
   const desperdicioPct = num(formData, "desperdicio_pct");
-  const ivaPct = num(formData, "iva_pct", 19);
+  const ivaPct = usoPersonal ? 0 : num(formData, "iva_pct", 19);
 
   const breakdown = calcularCostos({
     tiempoImpresionHoras: horas,
@@ -558,6 +564,7 @@ export async function savePrint(
   const payload = {
     nombre_proyecto: nombre,
     printer_id: printerId,
+    uso_personal: usoPersonal,
     tiempo_impresion_horas: horas,
     filamentos_usados: filamentosUsados,
     insumos_usados: insumosUsados,
@@ -696,7 +703,7 @@ export async function saveProject(
   if (printId) {
     const { data: print } = await supabase
       .from("prints")
-      .select("id, status")
+      .select("id, status, uso_personal")
       .eq("id", printId)
       .eq("user_id", user.id)
       .maybeSingle();
@@ -707,6 +714,14 @@ export async function saveProject(
     if (print.status !== "borrador")
       return {
         error: "Ese cálculo ya fue lanzado y no puede asociarse a un proyecto.",
+      };
+    // Un proyecto es un producto vendible y le aplica su propio margen: meterle
+    // una pieza marcada como uso propio le pondría precio a algo que se declaró
+    // sin precio.
+    if (print.uso_personal)
+      return {
+        error:
+          "Ese cálculo está marcado para uso personal. Destilda la casilla si vas a venderlo.",
       };
 
     // El índice único lo garantiza igual, pero atrapado acá el mensaje sirve.

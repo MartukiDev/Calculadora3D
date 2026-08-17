@@ -27,6 +27,8 @@ type Draft = {
   horas: string;
   notas: string;
   printer_id: string;
+  /** Para uno mismo: sin margen ni IVA, solo el costo de producirla. */
+  usoPersonal: boolean;
   seleccion: { filament_id: string; gramos: string }[];
   insumos: { item_id: string; cantidad: string }[];
   overrides: {
@@ -68,6 +70,7 @@ function draftInicial(settings: UserSettings, printers: Printer[]): Draft {
     horas: "",
     notas: "",
     printer_id: printer?.id ?? "",
+    usoPersonal: false,
     seleccion: [{ filament_id: "", gramos: "" }],
     // Vacío a propósito: la mayoría de las impresiones no lleva insumos y una
     // fila en blanco de más solo estorba.
@@ -90,6 +93,7 @@ function draftFromPrint(
     horas: String(print.tiempo_impresion_horas),
     notas: print.notas ?? "",
     printer_id: printer?.id ?? "",
+    usoPersonal: Boolean(print.uso_personal),
     seleccion:
       print.filamentos_usados?.length > 0
         ? print.filamentos_usados.map((f) => ({
@@ -121,7 +125,11 @@ function draftFromPrint(
             )
           : String(printer?.costo_depreciacion_clp_hora ?? 0),
       desperdicio_pct: String(print.desperdicio_pct),
-      iva_pct: String(print.iva_pct),
+      // Un cálculo de uso personal se guardó con IVA 0: si acá lo destildan,
+      // tiene que reaparecer el IVA del usuario y no un cero heredado.
+      iva_pct: String(
+        print.uso_personal ? (settings.iva_pct ?? 19) : print.iva_pct,
+      ),
     },
     margen: String(print.margen_pct),
   };
@@ -177,6 +185,8 @@ export function PrintCalculator({
         ...saved,
         // Los borradores anteriores al inventario no traen esta lista.
         insumos: saved.insumos ?? [],
+        // Ni los anteriores al uso personal, esta bandera.
+        usoPersonal: saved.usoPersonal ?? false,
         printer_id: printerValido
           ? saved.printer_id
           : (elegirDefault(impresoras)?.id ?? ""),
@@ -251,6 +261,15 @@ export function PrintCalculator({
     ];
   });
 
+  // Lo que se cobra de más solo existe si hay a quién cobrárselo: para uso
+  // propio el margen y el IVA valen 0 en la previsualización, igual que después
+  // los va a forzar el servidor. Los valores del formulario se conservan para
+  // que destildar la casilla los devuelva tal como estaban.
+  const margenEfectivo = draft.usoPersonal ? 0 : toNum(draft.margen);
+  const ivaEfectivo = draft.usoPersonal
+    ? 0
+    : toNum(draft.overrides.iva_pct);
+
   const breakdown = calcularCostos({
     tiempoImpresionHoras: toNum(draft.horas),
     filamentosUsados: seleccionValida,
@@ -263,8 +282,8 @@ export function PrintCalculator({
       draft.overrides.costo_depreciacion_clp_hora,
     ),
     desperdicioPct: toNum(draft.overrides.desperdicio_pct),
-    ivaPct: toNum(draft.overrides.iva_pct),
-    margenPct: toNum(draft.margen),
+    ivaPct: ivaEfectivo,
+    margenPct: margenEfectivo,
   });
 
   const excesos = draft.seleccion
@@ -360,6 +379,13 @@ export function PrintCalculator({
     <form action={formAction} className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
       {print && <input type="hidden" name="id" value={print.id} />}
       <input type="hidden" name="printer_id" value={draft.printer_id} />
+      {/* Va como hidden y no como checkbox con `name`: uno destildado no viaja
+          en el FormData y el servidor no podría distinguirlo de un campo ausente. */}
+      <input
+        type="hidden"
+        name="uso_personal"
+        value={String(draft.usoPersonal)}
+      />
       <input
         type="hidden"
         name="filamentos_usados"
@@ -777,6 +803,27 @@ export function PrintCalculator({
             </button>
           }
         >
+          {/* La casilla vive acá y no arriba porque lo que hace es apagar los dos
+              controles que le siguen: el IVA y el margen. */}
+          <label className="mb-6 flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3.5 transition hover:bg-white/[0.07]">
+            <input
+              type="checkbox"
+              checked={draft.usoPersonal}
+              onChange={(e) => update({ usoPersonal: e.target.checked })}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[#FF7A3D]"
+            />
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-white/90">
+                Es para mí
+              </span>
+              <span className="mt-0.5 block text-xs text-muted">
+                Sin margen ni IVA: solo lo que te cuesta imprimirla. El
+                desperdicio se sigue contando y el stock se descuenta igual al
+                lanzar.
+              </span>
+            </span>
+          </label>
+
           {mostrarOverrides && (
             <div className="mb-6 grid gap-5 sm:grid-cols-2">
               <OverrideField
@@ -817,42 +864,51 @@ export function PrintCalculator({
                 value={draft.overrides.desperdicio_pct}
                 onChange={(v) => updateOverride("desperdicio_pct", v)}
               />
-              <OverrideField
-                label="IVA"
-                suffix="%"
-                step="0.1"
-                max="100"
-                value={draft.overrides.iva_pct}
-                onChange={(v) => updateOverride("iva_pct", v)}
-              />
+              {!draft.usoPersonal && (
+                <OverrideField
+                  label="IVA"
+                  suffix="%"
+                  step="0.1"
+                  max="100"
+                  value={draft.overrides.iva_pct}
+                  onChange={(v) => updateOverride("iva_pct", v)}
+                />
+              )}
             </div>
           )}
 
-          <div>
-            <div className="mb-2 flex items-baseline justify-between">
-              <label className="field-label !mb-0" htmlFor="margen">
-                Margen de ganancia
-              </label>
-              <span className="num text-sm font-semibold text-accent">
-                {toNum(draft.margen)}%
-              </span>
+          {draft.usoPersonal ? (
+            <p className="text-sm text-muted">
+              Esta impresión es para ti, así que no lleva margen ni IVA. Su
+              precio final es su costo.
+            </p>
+          ) : (
+            <div>
+              <div className="mb-2 flex items-baseline justify-between">
+                <label className="field-label !mb-0" htmlFor="margen">
+                  Margen de ganancia
+                </label>
+                <span className="num text-sm font-semibold text-accent">
+                  {toNum(draft.margen)}%
+                </span>
+              </div>
+              <input
+                id="margen"
+                type="range"
+                min="0"
+                max="500"
+                step="5"
+                value={draft.margen}
+                onChange={(e) => update({ margen: e.target.value })}
+                className="w-full accent-[#FF7A3D]"
+              />
+              <div className="mt-1 flex justify-between text-[11px] text-muted">
+                <span>0%</span>
+                <span>250%</span>
+                <span>500%</span>
+              </div>
             </div>
-            <input
-              id="margen"
-              type="range"
-              min="0"
-              max="500"
-              step="5"
-              value={draft.margen}
-              onChange={(e) => update({ margen: e.target.value })}
-              className="w-full accent-[#FF7A3D]"
-            />
-            <div className="mt-1 flex justify-between text-[11px] text-muted">
-              <span>0%</span>
-              <span>250%</span>
-              <span>500%</span>
-            </div>
-          </div>
+          )}
 
           <div className="mt-5">
             <label className="field-label" htmlFor="notas">
@@ -876,17 +932,20 @@ export function PrintCalculator({
           <CostLayerStack
             breakdown={breakdown}
             desperdicioPct={toNum(draft.overrides.desperdicio_pct)}
-            margenPct={toNum(draft.margen)}
-            ivaPct={toNum(draft.overrides.iva_pct)}
+            margenPct={margenEfectivo}
+            ivaPct={ivaEfectivo}
+            usoPersonal={draft.usoPersonal}
           />
 
           <div className="mt-5 space-y-3 border-t border-white/[0.08] pt-5">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted">Ganancia estimada</span>
-              <span className="num text-white/90">
-                {formatCLP(breakdown.precioNeto - breakdown.costoTotal)}
-              </span>
-            </div>
+            {!draft.usoPersonal && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted">Ganancia estimada</span>
+                <span className="num text-white/90">
+                  {formatCLP(breakdown.precioNeto - breakdown.costoTotal)}
+                </span>
+              </div>
+            )}
 
             {state.error && <Alert>{state.error}</Alert>}
 

@@ -43,6 +43,25 @@ const vacio = (): ReportTotals => ({
 });
 
 /**
+ * Parte lo lanzado en dos mundos: lo que se vendió y lo que se imprimió para uso
+ * propio. No se pueden sumar juntos — una pieza personal se guarda con margen e
+ * IVA en cero, así que entraría con ingreso igual a su costo y ganancia cero,
+ * diluyendo el margen real del período y fabricando IVA inexistente.
+ *
+ * Del lado personal solo tienen sentido las columnas de costo de `ReportTotals`;
+ * `ingresos`, `neto`, `iva` y `ganancia` no se muestran.
+ */
+export function separarUsoPersonal(prints: Print[]): {
+  venta: Print[];
+  personal: Print[];
+} {
+  return {
+    venta: prints.filter((p) => !p.uso_personal),
+    personal: prints.filter((p) => p.uso_personal),
+  };
+}
+
+/**
  * Suma un conjunto de impresiones ya lanzadas.
  *
  * Nada se recalcula: cada `print` guarda sus costos congelados al guardarse, así

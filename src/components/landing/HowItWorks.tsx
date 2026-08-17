@@ -34,7 +34,7 @@ const PASOS = [
     numero: "05",
     titulo: "Ajusta el margen y lanza",
     descripcion:
-      "Un slider de 0% a 500% de margen y el IVA dan el precio de venta sugerido. Al lanzar, el filamento y los insumos de todas las unidades se descuentan en una sola operación.",
+      "Un slider de 0% a 500% de margen y el IVA dan el precio de venta sugerido. ¿La pieza es para ti? Marca la casilla y se queda en su costo, sin margen ni IVA. Al lanzar, el filamento y los insumos de todas las unidades se descuentan en una sola operación.",
     icon: SparkIcon,
   },
 ] as const;

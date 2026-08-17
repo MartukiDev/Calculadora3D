@@ -85,6 +85,12 @@ export type Print = {
   printer_id: string | null;
   nombre_proyecto: string;
   status: PrintStatus;
+  /**
+   * La pieza es para uno mismo: no se vende, así que va sin margen ni IVA y su
+   * precio final es su costo. El desperdicio sí se le aplica — una impresión
+   * fallida consume filamento sea para un cliente o para el propio taller.
+   */
+  uso_personal: boolean;
   tiempo_impresion_horas: number;
   filamentos_usados: FilamentoUsado[];
   insumos_usados: InsumoUsado[];

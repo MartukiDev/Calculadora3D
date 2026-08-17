@@ -9,7 +9,12 @@ import {
   hoyISO,
   inicioDeMesISO,
 } from "@/lib/format";
-import { acumular, acumularPorImpresora, gramosDe } from "@/lib/report";
+import {
+  acumular,
+  acumularPorImpresora,
+  gramosDe,
+  separarUsoPersonal,
+} from "@/lib/report";
 import type { Print, Printer } from "@/lib/types";
 import { ReportFilters } from "./ReportFilters";
 
@@ -52,8 +57,13 @@ export default async function ReportesPage({
   const printers = (printersRes.data ?? []) as Printer[];
   const printersPorId = new Map(printers.map((p) => [p.id, p]));
 
-  const t = acumular(prints);
-  const porImpresora = acumularPorImpresora(prints);
+  // Los dos mundos se reportan por separado: lo vendido tiene ingresos, IVA y
+  // ganancia; lo propio solo tiene costo.
+  const { venta, personal } = separarUsoPersonal(prints);
+
+  const t = acumular(venta);
+  const tPersonal = acumular(personal);
+  const porImpresora = acumularPorImpresora(venta);
 
   const capas = [
     { label: "Filamento", value: t.filamento, extra: formatGramos(t.gramos) },
@@ -70,7 +80,8 @@ export default async function ReportesPage({
         <h1 className="text-2xl font-semibold text-white/95">Reportes</h1>
         <p className="mt-1 text-sm text-muted">
           Solo impresiones lanzadas, contadas por su fecha de lanzamiento — el
-          día en que realmente se consumió el material.
+          día en que realmente se consumió el material. Lo que imprimiste para
+          ti va aparte: cuesta, pero no vende.
         </p>
       </div>
 
@@ -80,7 +91,7 @@ export default async function ReportesPage({
         <Alert>No pudimos cargar el reporte: {printsRes.error.message}</Alert>
       )}
 
-      {prints.length === 0 ? (
+      {prints.length === 0 && (
         <GlassPanel>
           <EmptyState
             title="Sin impresiones lanzadas en el período"
@@ -92,7 +103,11 @@ export default async function ReportesPage({
             }
           />
         </GlassPanel>
-      ) : (
+      )}
+
+      {/* Un período puede tener solo impresiones para uno mismo: ahí no hay
+          ventas que resumir, pero sí material consumido que mostrar abajo. */}
+      {venta.length > 0 && (
         <>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <Stat label="Impresiones" value={String(t.impresiones)} />
@@ -238,9 +253,9 @@ export default async function ReportesPage({
             </div>
           </div>
 
-          <GlassPanel title={`Impresiones lanzadas (${prints.length})`}>
+          <GlassPanel title={`Impresiones lanzadas (${venta.length})`}>
             <ul className="space-y-2">
-              {prints.map((print) => {
+              {venta.map((print) => {
                 const printer = print.printer_id
                   ? printersPorId.get(print.printer_id)
                   : undefined;
@@ -305,6 +320,94 @@ export default async function ReportesPage({
           </GlassPanel>
         </>
       )}
+
+      {personal.length > 0 && (
+        <GlassPanel
+          title={`Uso propio (${personal.length})`}
+          description="Lo que imprimiste para ti. No genera ingreso ni IVA: solo consume material y horas de máquina."
+        >
+          <div className="grid grid-cols-3 gap-3">
+            <MiniStat
+              label="Impresiones"
+              value={String(tPersonal.impresiones)}
+            />
+            <MiniStat label="Material" value={formatGramos(tPersonal.gramos)} />
+            <MiniStat
+              label="Costo"
+              value={formatCLP(tPersonal.costoTotal)}
+              tone="accent"
+            />
+          </div>
+
+          <ul className="mt-4 space-y-2">
+            {personal.map((print) => {
+              const printer = print.printer_id
+                ? printersPorId.get(print.printer_id)
+                : undefined;
+
+              return (
+                <li key={print.id}>
+                  <Link
+                    href={`/dashboard/calculos/${print.id}`}
+                    className="glass-row flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3.5 transition hover:bg-white/[0.08]"
+                  >
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full border border-white/25"
+                      style={{
+                        backgroundColor:
+                          printer?.color_hex ?? "rgba(255,255,255,0.15)",
+                      }}
+                      aria-hidden
+                    />
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-white/90">
+                        {print.nombre_proyecto}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-muted">
+                        {formatDate(print.fecha_lanzamiento)} ·{" "}
+                        {printer?.nombre ?? "Sin impresora"} ·{" "}
+                        {formatGramos(gramosDe(print))}
+                      </p>
+                    </div>
+
+                    <div className="text-right">
+                      <p className="text-xs text-muted">Costo</p>
+                      <p className="num text-sm font-semibold text-white/95">
+                        {formatCLP(print.costo_total)}
+                      </p>
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </GlassPanel>
+      )}
+    </div>
+  );
+}
+
+/** Versión compacta del Stat, para vivir dentro de un panel y no en la grilla. */
+function MiniStat({
+  label,
+  value,
+  tone = "normal",
+}: {
+  label: string;
+  value: string;
+  tone?: "normal" | "accent";
+}) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-3">
+      <p className="text-xs tracking-wide text-muted uppercase">{label}</p>
+      <p
+        className={`num mt-1 text-base font-semibold ${
+          tone === "accent" ? "text-accent" : "text-white/95"
+        }`}
+      >
+        {value}
+      </p>
     </div>
   );
 }

@@ -106,6 +106,33 @@ siendo exactamente el recargo por desperdicio, que es lo que derivan el desglose
 (`CostLayerStack`) y los reportes (`src/lib/report.ts`). El costo real es
 `(base + insumosConDesperdicio) × (1 + d) + insumosSinDesperdicio`.
 
+### Uso personal
+
+`prints.uso_personal` marca la pieza que no se vende. Un cálculo así va **sin
+margen y sin IVA** (su `precio_final_con_iva` es su `costo_total`), pero **sí paga
+desperdicio** y **sí descuenta stock al lanzar**: una impresión fallida consume
+filamento sea para un cliente o para el propio taller.
+
+Es una columna y no un `margen_pct = 0` porque con solo el margen en cero una
+pieza regalada y otra vendida al costo son indistinguibles, y los reportes tienen
+que poder separarlas.
+
+Los ceros los fuerza **`savePrint`**, no el cliente: la calculadora conserva el
+margen y el IVA del formulario para que destildar la casilla los devuelva
+intactos, y solo los anula en la previsualización. `draftFromPrint` recupera el
+IVA de `user_settings` cuando el cálculo se guardó con IVA 0 por esta vía, si no
+destildar dejaría el 0 heredado.
+
+Los reportes parten lo lanzado en dos con `separarUsoPersonal`
+(`src/lib/report.ts`): ingresos, IVA, ganancia y "por impresora" salen solo de
+`venta`; lo personal tiene su propio panel con impresiones, material y costo, y
+nunca columnas de ingreso. Sumarlos juntos diluiría el margen real e inventaría
+IVA.
+
+Un cálculo personal **no puede entrar en un proyecto** — queda fuera del selector
+(`proyectos/data.ts`) y `saveProject` lo rechaza. El proyecto le aplicaría su
+propio margen a algo declarado sin precio.
+
 ### Proyectos
 
 Un proyecto es un **producto vendible**: un cálculo repetido `cantidad` veces más

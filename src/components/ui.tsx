@@ -36,6 +36,18 @@ export function StatusBadge({ status }: { status: PrintStatus }) {
   );
 }
 
+/**
+ * Marca un cálculo que no se vende. Convive con el StatusBadge en vez de
+ * reemplazarlo: un cálculo personal también puede estar en borrador o lanzado.
+ */
+export function UsoPersonalBadge() {
+  return (
+    <span className="badge border-white/15 bg-white/[0.06] text-white/70">
+      Para mí
+    </span>
+  );
+}
+
 export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
   if (status === "lanzado") {
     return (

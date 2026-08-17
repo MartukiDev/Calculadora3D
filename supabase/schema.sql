@@ -119,6 +119,13 @@ alter table public.prints
 alter table public.prints
   add column if not exists costo_insumos numeric(10,2) not null default 0;
 
+-- Impresión para uso propio: no se vende, así que no lleva margen ni IVA y solo
+-- cuesta lo que cuesta producirla. Es una columna y no un margen_pct = 0 porque
+-- los reportes tienen que poder separar lo vendido del consumo propio: con solo
+-- el margen en cero, una pieza regalada y otra vendida al costo son idénticas.
+alter table public.prints
+  add column if not exists uso_personal boolean not null default false;
+
 -- Proyectos: un producto vendible con su propio margen.
 --
 -- Un proyecto es UN cálculo repetido `cantidad` veces más los insumos de armado

@@ -13,10 +13,13 @@ export async function cargarOpcionesProyecto(projectId?: string) {
   const supabase = await createClient();
 
   const [printsRes, insumosRes, settingsRes, tomadosRes] = await Promise.all([
+    // Los cálculos de uso propio quedan fuera del selector: el proyecto vende, y
+    // esas piezas se declararon sin precio.
     supabase
       .from("prints")
       .select("*")
       .eq("status", "borrador")
+      .eq("uso_personal", false)
       .order("created_at", { ascending: false }),
     // Los repuestos de taller quedan fuera: no son parte del producto.
     supabase

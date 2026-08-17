@@ -6,6 +6,8 @@ type Props = {
   desperdicioPct: number;
   margenPct: number;
   ivaPct: number;
+  /** La pieza es para uno mismo: la pila termina en el costo, sin margen ni IVA. */
+  usoPersonal?: boolean;
   /** Anima la entrada capa por capa (uso en landing / demos); no aplica en el flujo real del formulario. */
   animateIn?: boolean;
 };
@@ -27,6 +29,7 @@ export function CostLayerStack({
   desperdicioPct,
   margenPct,
   ivaPct,
+  usoPersonal = false,
   animateIn = false,
 }: Props) {
   // Los insumos solo aparecen si el cálculo los usa: la mayoría de las
@@ -78,27 +81,49 @@ export function CostLayerStack({
         className={`rounded-2xl border border-accent/30 bg-accent-soft p-4 backdrop-blur-xl ${animateIn ? "animate-layer-rise" : ""}`}
         style={{ animationDelay: animateIn ? `${layers.length * 110}ms` : undefined }}
       >
-        <Row
-          label="Costo total"
-          value={formatCLP(breakdown.costoTotal)}
-          tone="strong"
-        />
-        <Row
-          label={`Precio neto (margen ${margenPct}%)`}
-          value={formatCLP(breakdown.precioNeto)}
-        />
-        {/* El IVA no se guarda: es exactamente lo que el precio final agrega sobre el neto. */}
-        <Row
-          label={`IVA (${ivaPct}%)`}
-          value={`+ ${formatCLP(breakdown.precioFinalConIva - breakdown.precioNeto)}`}
-        />
-        <div className="my-3 h-px bg-white/12" />
-        <div className="flex items-baseline justify-between gap-3">
-          <span className="text-sm font-medium text-white/85">Precio final</span>
-          <span className="num text-2xl font-semibold text-accent">
-            {formatCLP(breakdown.precioFinalConIva)}
-          </span>
-        </div>
+        {/* Para uso propio la pila termina acá: no hay margen que sumar ni IVA
+            que recaudar, así que el costo total es el número grande. */}
+        {usoPersonal ? (
+          <>
+            <p className="text-xs tracking-wide text-white/55 uppercase">
+              Uso personal · sin margen ni IVA
+            </p>
+            <div className="mt-2 flex items-baseline justify-between gap-3">
+              <span className="text-sm font-medium text-white/85">
+                Costo total
+              </span>
+              <span className="num text-2xl font-semibold text-accent">
+                {formatCLP(breakdown.costoTotal)}
+              </span>
+            </div>
+          </>
+        ) : (
+          <>
+            <Row
+              label="Costo total"
+              value={formatCLP(breakdown.costoTotal)}
+              tone="strong"
+            />
+            <Row
+              label={`Precio neto (margen ${margenPct}%)`}
+              value={formatCLP(breakdown.precioNeto)}
+            />
+            {/* El IVA no se guarda: es exactamente lo que el precio final agrega sobre el neto. */}
+            <Row
+              label={`IVA (${ivaPct}%)`}
+              value={`+ ${formatCLP(breakdown.precioFinalConIva - breakdown.precioNeto)}`}
+            />
+            <div className="my-3 h-px bg-white/12" />
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-sm font-medium text-white/85">
+                Precio final
+              </span>
+              <span className="num text-2xl font-semibold text-accent">
+                {formatCLP(breakdown.precioFinalConIva)}
+              </span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

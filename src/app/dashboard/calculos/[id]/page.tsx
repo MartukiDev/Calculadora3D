@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { CostLayerStack } from "@/components/CostLayerStack";
 import { FilamentChip } from "@/components/FilamentChip";
 import { GlassPanel } from "@/components/GlassPanel";
-import { Alert, StatusBadge } from "@/components/ui";
+import { Alert, StatusBadge, UsoPersonalBadge } from "@/components/ui";
 import {
   formatCantidad,
   formatCLP,
@@ -135,6 +135,7 @@ export default async function CalculoDetallePage({
           <h1 className="mt-2 flex flex-wrap items-center gap-3 text-2xl font-semibold text-white/95">
             <span className="break-words">{print.nombre_proyecto}</span>
             <StatusBadge status={print.status} />
+            {print.uso_personal && <UsoPersonalBadge />}
           </h1>
           <p className="mt-1 text-sm text-muted">
             Creado el {formatDate(print.created_at)}
@@ -172,7 +173,9 @@ export default async function CalculoDetallePage({
         </Alert>
       )}
 
-      {!proyecto && print.status === "borrador" && (
+      {/* Un cálculo de uso propio no se ofrece para proyecto: el proyecto le
+          aplicaría su margen a algo declarado sin precio. */}
+      {!proyecto && !print.uso_personal && print.status === "borrador" && (
         <p className="text-sm text-muted">
           ¿Vas a producir varias unidades?{" "}
           <Link
@@ -236,7 +239,9 @@ export default async function CalculoDetallePage({
               </div>
               <div>
                 <dt className="text-xs text-muted">Margen</dt>
-                <dd className="num mt-1 text-white/90">{print.margen_pct}%</dd>
+                <dd className="num mt-1 text-white/90">
+                  {print.uso_personal ? "—" : `${print.margen_pct}%`}
+                </dd>
               </div>
             </dl>
 
@@ -338,6 +343,7 @@ export default async function CalculoDetallePage({
             desperdicioPct={Number(print.desperdicio_pct)}
             margenPct={Number(print.margen_pct)}
             ivaPct={Number(print.iva_pct)}
+            usoPersonal={print.uso_personal}
           />
         </GlassPanel>
       </div>

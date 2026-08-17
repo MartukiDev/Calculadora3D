@@ -27,6 +27,11 @@ const FEATURES = [
       "Cada impresión puede combinar hasta cuatro colores. El costo de material se prorratea por gramo exacto de cada uno.",
   },
   {
+    titulo: "Lo que imprimes para ti, aparte",
+    descripcion:
+      "Marca el cálculo como propio y va sin margen ni IVA: solo lo que te costó. En los reportes tiene su propia sección, para que no se mezcle con lo que vendiste.",
+  },
+  {
     titulo: "Historial con filtros",
     descripcion:
       "Busca por nombre, filtra por impresora, estado o rango de fechas. Cada cálculo guarda su desglose completo, no solo el total.",

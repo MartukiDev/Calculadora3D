@@ -4,7 +4,8 @@ App web personal para calcular el costo real de cada impresión 3D, administrar
 varias impresoras con sus propios costos, gestionar el inventario de filamentos
 (hasta 4 por impresión, multi-color) y de insumos de taller (tags NFC, argollas,
 imanes, boquillas), armar proyectos que producen un mismo cálculo en cantidad y
-descontar stock automáticamente al lanzar.
+descontar stock automáticamente al lanzar. Lo que imprimes para ti se marca como
+uso personal y se reporta aparte, al costo.
 
 **Stack:** Next.js 16 (App Router) · TypeScript · Tailwind CSS v4 · Supabase
 (Auth + Postgres + RLS). El detalle funcional y de diseño está en
@@ -149,6 +150,14 @@ conservan sus costos y quedan sin impresora asociada.
 transacción descuenta los gramos de cada filamento y cambia el estado a
 `lanzada`. Es irreversible sobre el stock, por eso pide confirmación explícita y
 los cálculos lanzados ya no se pueden editar.
+
+**Una impresión puede ser para uno mismo.** La casilla *Es para mí* del cálculo
+guarda `uso_personal` y lo deja **sin margen y sin IVA**: su precio final es su
+costo. El desperdicio se le sigue aplicando y el stock se descuenta igual al
+lanzar — una impresión fallida consume filamento sea para un cliente o para el
+propio taller. Los reportes las cuentan en una sección aparte, con su material y
+su costo, para que no diluyan el margen ni inventen IVA. Un cálculo así no puede
+asociarse a un proyecto, que por definición vende.
 
 **Un proyecto es un producto vendible**: toma un cálculo, lo repite las unidades
 que vayas a producir y le suma los insumos que lleva el armado y no la impresión

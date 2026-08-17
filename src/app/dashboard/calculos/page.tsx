@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { GlassPanel } from "@/components/GlassPanel";
-import { Alert, EmptyState, StatusBadge } from "@/components/ui";
+import {
+  Alert,
+  EmptyState,
+  StatusBadge,
+  UsoPersonalBadge,
+} from "@/components/ui";
 import { formatCLP, formatDate, formatHoras } from "@/lib/format";
 import type { Filament, Print, Printer, PrintStatus } from "@/lib/types";
 import { HistoryFilters } from "./HistoryFilters";
@@ -59,8 +64,9 @@ export default async function CalculosPage({
     >[]).map((f) => [f.id, f]),
   );
 
+  // Lo personal queda fuera del total: es costo consumido, no dinero cobrado.
   const totalLanzado = prints
-    .filter((p) => p.status === "lanzada")
+    .filter((p) => p.status === "lanzada" && !p.uso_personal)
     .reduce((acc, p) => acc + Number(p.precio_final_con_iva), 0);
 
   return (
@@ -71,6 +77,7 @@ export default async function CalculosPage({
           <p className="mt-1 text-sm text-muted">
             {prints.length} cálculo(s) · {formatCLP(totalLanzado)} en impresiones
             lanzadas
+            {prints.some((p) => p.uso_personal) && ", sin contar las de uso propio"}
           </p>
         </div>
         <Link href="/dashboard/calculos/nuevo" className="btn-primary">
@@ -150,36 +157,50 @@ export default async function CalculosPage({
                   </div>
 
                   {/* El badge acompaña al nombre en mobile y cierra la fila en desktop. */}
-                  <div className="sm:order-last">
+                  <div className="flex flex-wrap gap-1.5 sm:order-last">
                     <StatusBadge status={print.status} />
+                    {print.uso_personal && <UsoPersonalBadge />}
                   </div>
 
                   <div className="grid w-full grid-cols-3 gap-2 border-t border-white/[0.06] pt-3 sm:flex sm:w-auto sm:gap-4 sm:border-0 sm:pt-0">
-                    <div className="text-left sm:text-right">
-                      <p className="text-xs text-muted">Costo</p>
-                      <p className="num text-sm text-white/80">
-                        {formatCLP(print.costo_total)}
-                      </p>
-                    </div>
+                    {/* Un cálculo personal no tiene precio ni IVA que mostrar:
+                        las tres columnas dirían tres veces el mismo costo. */}
+                    {print.uso_personal ? (
+                      <div className="col-span-3 text-left sm:text-right">
+                        <p className="text-xs text-muted">Costo</p>
+                        <p className="num text-sm font-semibold text-white/95">
+                          {formatCLP(print.costo_total)}
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="text-left sm:text-right">
+                          <p className="text-xs text-muted">Costo</p>
+                          <p className="num text-sm text-white/80">
+                            {formatCLP(print.costo_total)}
+                          </p>
+                        </div>
 
-                    <div className="text-left sm:text-right">
-                      <p className="text-xs text-muted">
-                        IVA ({Number(print.iva_pct)}%)
-                      </p>
-                      <p className="num text-sm text-white/80">
-                        {formatCLP(
-                          Number(print.precio_final_con_iva) -
-                            Number(print.precio_neto),
-                        )}
-                      </p>
-                    </div>
+                        <div className="text-left sm:text-right">
+                          <p className="text-xs text-muted">
+                            IVA ({Number(print.iva_pct)}%)
+                          </p>
+                          <p className="num text-sm text-white/80">
+                            {formatCLP(
+                              Number(print.precio_final_con_iva) -
+                                Number(print.precio_neto),
+                            )}
+                          </p>
+                        </div>
 
-                    <div className="text-left sm:text-right">
-                      <p className="text-xs text-muted">Precio final</p>
-                      <p className="num text-sm font-semibold text-white/95">
-                        {formatCLP(print.precio_final_con_iva)}
-                      </p>
-                    </div>
+                        <div className="text-left sm:text-right">
+                          <p className="text-xs text-muted">Precio final</p>
+                          <p className="num text-sm font-semibold text-white/95">
+                            {formatCLP(print.precio_final_con_iva)}
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </Link>
               </li>
