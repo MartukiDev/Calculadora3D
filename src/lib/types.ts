@@ -37,9 +37,43 @@ export type Filament = {
   updated_at: string;
 };
 
+/** Insumo de taller que no es filamento: NFC, argollas, imanes, boquillas. */
+export type InventoryItem = {
+  id: string;
+  user_id: string;
+  nombre: string;
+  /** Texto libre: cada taller nombra sus cosas distinto. */
+  categoria: string;
+  unidad: string;
+  color_hex: string;
+  costo_clp_unidad: number;
+  stock: number;
+  /** 0 = sin alerta. Por ítem, porque las unidades no son comparables. */
+  stock_minimo: number;
+  /** Los repuestos de taller no entran al selector de la calculadora. */
+  usa_en_calculo: boolean;
+  /** Si se pierde cuando la impresión falla (NFC embebido sí, embalaje no). */
+  aplica_desperdicio: boolean;
+  nota: string | null;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export type FilamentoUsado = {
   filament_id: string;
   gramos: number;
+};
+
+/**
+ * Línea de insumo dentro de un cálculo. Congela costo y comportamiento frente
+ * al desperdicio: el precio del ítem puede cambiar mañana, el cálculo no.
+ */
+export type InsumoUsado = {
+  item_id: string;
+  cantidad: number;
+  costo_unitario: number;
+  aplica_desperdicio: boolean;
 };
 
 export type PrintStatus = "borrador" | "lanzada";
@@ -53,7 +87,9 @@ export type Print = {
   status: PrintStatus;
   tiempo_impresion_horas: number;
   filamentos_usados: FilamentoUsado[];
+  insumos_usados: InsumoUsado[];
   costo_filamento: number;
+  costo_insumos: number;
   costo_luz: number;
   costo_mano_obra: number;
   costo_depreciacion: number;
@@ -83,5 +119,19 @@ export const MATERIALES = [
   "Otro",
 ] as const;
 
+/**
+ * Unidades del inventario de insumos. La primera es la habitual (piezas); el
+ * resto cubre lo que se compra a granel (pegamento, cadena, cinta).
+ */
+export const UNIDADES = ["u", "g", "ml", "m", "cm", "par", "set"] as const;
+
 export const MAX_FILAMENTOS = 4;
+export const MAX_INSUMOS = 8;
 export const STOCK_BAJO_GRAMOS = 50;
+
+/** El umbral de los insumos es por ítem; un mínimo en 0 significa "no me avises". */
+export const stockBajoInsumo = (
+  item: Pick<InventoryItem, "stock" | "stock_minimo">,
+): boolean =>
+  Number(item.stock_minimo) > 0 &&
+  Number(item.stock) <= Number(item.stock_minimo);

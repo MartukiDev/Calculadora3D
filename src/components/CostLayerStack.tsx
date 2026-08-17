@@ -10,7 +10,13 @@ type Props = {
   animateIn?: boolean;
 };
 
-const LAYER_BLUR = ["backdrop-blur-[2px]", "backdrop-blur-[5px]", "backdrop-blur-[9px]", "backdrop-blur-[14px]"];
+const LAYER_BLUR = [
+  "backdrop-blur-[2px]",
+  "backdrop-blur-[5px]",
+  "backdrop-blur-[9px]",
+  "backdrop-blur-[14px]",
+  "backdrop-blur-[20px]",
+];
 
 /**
  * Desglose renderizado como capas de vidrio apiladas con offset y blur creciente:
@@ -23,11 +29,16 @@ export function CostLayerStack({
   ivaPct,
   animateIn = false,
 }: Props) {
+  // Los insumos solo aparecen si el cálculo los usa: la mayoría de las
+  // impresiones no lleva, y una capa en $0 fija sería ruido.
   const layers = [
     { label: "Filamento", value: breakdown.costoFilamento },
     { label: "Luz", value: breakdown.costoLuz },
     { label: "Mano de obra", value: breakdown.costoManoObra },
     { label: "Depreciación", value: breakdown.costoDepreciacion },
+    ...(breakdown.costoInsumos > 0
+      ? [{ label: "Insumos", value: breakdown.costoInsumos }]
+      : []),
   ];
 
   return (

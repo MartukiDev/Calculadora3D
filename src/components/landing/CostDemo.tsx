@@ -35,6 +35,7 @@ const scale = (b: CostBreakdown, p: number): CostBreakdown => ({
   costoLuz: b.costoLuz * p,
   costoManoObra: b.costoManoObra * p,
   costoDepreciacion: b.costoDepreciacion * p,
+  costoInsumos: b.costoInsumos * p,
   subtotal: b.subtotal * p,
   costoTotal: b.costoTotal * p,
   precioNeto: b.precioNeto * p,

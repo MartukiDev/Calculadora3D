@@ -18,6 +18,7 @@ const LAYER_BLUR = [
   "backdrop-blur-[5px]",
   "backdrop-blur-[9px]",
   "backdrop-blur-[14px]",
+  "backdrop-blur-[20px]",
 ];
 
 export default async function ReportesPage({
@@ -59,6 +60,8 @@ export default async function ReportesPage({
     { label: "Electricidad", value: t.luz },
     { label: "Mano de obra", value: t.manoObra },
     { label: "Depreciación", value: t.depreciacion },
+    // Solo si el período llevó insumos: una capa en $0 no dice nada.
+    ...(t.insumos > 0 ? [{ label: "Insumos", value: t.insumos }] : []),
   ];
 
   return (

@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Alert } from "@/components/ui";
-import type { Filament, Printer, UserSettings } from "@/lib/types";
+import type {
+  Filament,
+  InventoryItem,
+  Printer,
+  UserSettings,
+} from "@/lib/types";
 import { PrintCalculator } from "../PrintCalculator";
 
 export default async function NuevoCalculoPage() {
@@ -10,7 +15,7 @@ export default async function NuevoCalculoPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [settingsRes, filamentsRes, printersRes] = await Promise.all([
+  const [settingsRes, filamentsRes, printersRes, insumosRes] = await Promise.all([
     supabase.from("user_settings").select("*").maybeSingle(),
     supabase
       .from("filaments")
@@ -22,6 +27,14 @@ export default async function NuevoCalculoPage() {
       .select("*")
       .eq("activo", true)
       .order("es_default", { ascending: false })
+      .order("nombre", { ascending: true }),
+    // Los repuestos de taller quedan fuera: no son parte de la pieza.
+    supabase
+      .from("inventory_items")
+      .select("*")
+      .eq("activo", true)
+      .eq("usa_en_calculo", true)
+      .order("categoria", { ascending: true })
       .order("nombre", { ascending: true }),
   ]);
 
@@ -74,6 +87,7 @@ export default async function NuevoCalculoPage() {
         settings={settings}
         filamentos={(filamentsRes.data ?? []) as Filament[]}
         impresoras={impresoras}
+        insumos={(insumosRes.data ?? []) as InventoryItem[]}
         userId={user?.id ?? ""}
       />
     </div>

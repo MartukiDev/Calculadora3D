@@ -3,10 +3,12 @@ import { createClient } from "@/lib/supabase/server";
 import { GlassPanel } from "@/components/GlassPanel";
 import { FilamentChip } from "@/components/FilamentChip";
 import { StatusBadge, EmptyState, Alert } from "@/components/ui";
-import { formatCLP, formatDate } from "@/lib/format";
+import { formatCantidad, formatCLP, formatDate } from "@/lib/format";
 import {
   STOCK_BAJO_GRAMOS,
+  stockBajoInsumo,
   type Filament,
+  type InventoryItem,
   type Print,
   type Printer,
 } from "@/lib/types";
@@ -14,31 +16,43 @@ import {
 export default async function DashboardPage() {
   const supabase = await createClient();
 
-  const [settingsRes, filamentsRes, printsRes, printersRes] = await Promise.all([
-    supabase.from("user_settings").select("*").maybeSingle(),
-    supabase.from("filaments").select("*").eq("activo", true),
-    supabase
-      .from("prints")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(5),
-    supabase.from("printers").select("*").eq("activo", true),
-  ]);
+  const [settingsRes, filamentsRes, printsRes, printersRes, itemsRes] =
+    await Promise.all([
+      supabase.from("user_settings").select("*").maybeSingle(),
+      supabase.from("filaments").select("*").eq("activo", true),
+      supabase
+        .from("prints")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(5),
+      supabase.from("printers").select("*").eq("activo", true),
+      supabase.from("inventory_items").select("*").eq("activo", true),
+    ]);
 
   const settings = settingsRes.data;
   const filaments = (filamentsRes.data ?? []) as Filament[];
   const prints = (printsRes.data ?? []) as Print[];
   const printers = (printersRes.data ?? []) as Printer[];
+  const items = (itemsRes.data ?? []) as InventoryItem[];
   const printersPorId = new Map(printers.map((p) => [p.id, p]));
 
   const stockBajo = filaments.filter(
     (f) => Number(f.stock_gramos) < STOCK_BAJO_GRAMOS,
   );
+  const insumosBajos = items.filter(stockBajoInsumo);
   const lanzadas = prints.filter((p) => p.status === "lanzada");
-  const valorInventario = filaments.reduce(
-    (acc, f) => acc + (Number(f.stock_gramos) / 1000) * Number(f.costo_clp_kg),
-    0,
-  );
+
+  // El inventario es uno solo aunque viva en dos tablas: filamento por gramo,
+  // insumos por unidad.
+  const valorInventario =
+    filaments.reduce(
+      (acc, f) => acc + (Number(f.stock_gramos) / 1000) * Number(f.costo_clp_kg),
+      0,
+    ) +
+    items.reduce(
+      (acc, i) => acc + Number(i.stock) * Number(i.costo_clp_unidad),
+      0,
+    );
 
   const sinImpresoras = printers.length === 0;
   const sinConfigurar =
@@ -85,8 +99,8 @@ export default async function DashboardPage() {
         <Stat label="Valor inventario" value={formatCLP(valorInventario)} />
         <Stat
           label="Stock bajo"
-          value={String(stockBajo.length)}
-          tone={stockBajo.length > 0 ? "warn" : "normal"}
+          value={String(stockBajo.length + insumosBajos.length)}
+          tone={stockBajo.length + insumosBajos.length > 0 ? "warn" : "normal"}
         />
       </div>
 
@@ -168,33 +182,63 @@ export default async function DashboardPage() {
 
         <GlassPanel
           title="Stock bajo"
-          description={`Menos de ${STOCK_BAJO_GRAMOS} g disponibles`}
+          description={`Filamento bajo ${STOCK_BAJO_GRAMOS} g e insumos en su mínimo`}
         >
-          {stockBajo.length === 0 ? (
+          {stockBajo.length === 0 && insumosBajos.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted">
               Todo tu inventario está sobre el umbral.
             </p>
           ) : (
-            <ul className="flex flex-wrap gap-2">
-              {stockBajo.map((f) => (
-                <li key={f.id}>
-                  <FilamentChip
-                    colorHex={f.color_hex}
-                    label={`${f.marca} ${f.material}`}
-                    sublabel={f.color_nombre}
-                    gramos={Number(f.stock_gramos)}
-                    size="sm"
-                  />
-                </li>
-              ))}
-            </ul>
+            <div className="space-y-4">
+              {stockBajo.length > 0 && (
+                <ul className="flex flex-wrap gap-2">
+                  {stockBajo.map((f) => (
+                    <li key={f.id}>
+                      <FilamentChip
+                        colorHex={f.color_hex}
+                        label={`${f.marca} ${f.material}`}
+                        sublabel={f.color_nombre}
+                        gramos={Number(f.stock_gramos)}
+                        size="sm"
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {insumosBajos.length > 0 && (
+                <ul className="space-y-2">
+                  {insumosBajos.map((i) => (
+                    <li
+                      key={i.id}
+                      className="glass-row flex items-center gap-3 px-3.5 py-2.5"
+                    >
+                      <span
+                        className="h-6 w-6 shrink-0 rounded-lg border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.3)]"
+                        style={{ backgroundColor: i.color_hex }}
+                        aria-hidden
+                      />
+                      <span className="min-w-0 flex-1 truncate text-sm text-white/85">
+                        {i.nombre}
+                      </span>
+                      <span className="num text-sm text-accent">
+                        {formatCantidad(i.stock, i.unidad)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
-          <Link
-            href="/dashboard/filamentos"
-            className="btn-ghost mt-5 w-full text-sm"
-          >
-            Gestionar filamentos
-          </Link>
+
+          <div className="mt-5 flex gap-2">
+            <Link href="/dashboard/filamentos" className="btn-ghost flex-1 text-sm">
+              Filamentos
+            </Link>
+            <Link href="/dashboard/inventario" className="btn-ghost flex-1 text-sm">
+              Inventario
+            </Link>
+          </div>
         </GlassPanel>
       </div>
     </div>

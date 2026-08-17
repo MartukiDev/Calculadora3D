@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { calcularCostos } from "@/lib/calc";
-import { MAX_FILAMENTOS, type FilamentoUsado } from "@/lib/types";
+import {
+  MAX_FILAMENTOS,
+  MAX_INSUMOS,
+  type FilamentoUsado,
+  type InsumoUsado,
+} from "@/lib/types";
 
 export type ActionState = { error?: string; message?: string; ok?: boolean };
 
@@ -245,6 +250,128 @@ export async function deleteFilament(formData: FormData) {
 }
 
 // ------------------------------------------------------------
+// Inventario de insumos
+// ------------------------------------------------------------
+
+export async function saveInventoryItem(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const { supabase, user } = await requireUser();
+
+  const id = str(formData, "id");
+  const nombre = str(formData, "nombre");
+  const unidad = str(formData, "unidad") || "u";
+  const colorHex = str(formData, "color_hex") || "#3ddad7";
+  const costo = num(formData, "costo_clp_unidad");
+  const stock = num(formData, "stock");
+  const stockMinimo = num(formData, "stock_minimo");
+
+  if (!nombre) return { error: "El nombre del insumo es obligatorio." };
+  if (!/^#[0-9a-fA-F]{6}$/.test(colorHex))
+    return { error: "El color debe ser un hex válido (#RRGGBB)." };
+  if (costo < 0) return { error: "El costo no puede ser negativo." };
+  if (stock < 0) return { error: "El stock no puede ser negativo." };
+  if (stockMinimo < 0) return { error: "El stock mínimo no puede ser negativo." };
+
+  const payload = {
+    nombre,
+    categoria: str(formData, "categoria"),
+    unidad,
+    color_hex: colorHex.toLowerCase(),
+    costo_clp_unidad: costo,
+    stock,
+    stock_minimo: stockMinimo,
+    usa_en_calculo: str(formData, "usa_en_calculo") === "on",
+    aplica_desperdicio: str(formData, "aplica_desperdicio") === "on",
+    nota: str(formData, "nota") || null,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = id
+    ? await supabase
+        .from("inventory_items")
+        .update(payload)
+        .eq("id", id)
+        .eq("user_id", user.id)
+    : await supabase
+        .from("inventory_items")
+        .insert({ ...payload, user_id: user.id });
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/dashboard/inventario");
+  revalidatePath("/dashboard/calculos/nuevo");
+  return { ok: true, message: id ? "Insumo actualizado." : "Insumo creado." };
+}
+
+/**
+ * Ajuste rápido de stock desde la tarjeta (compra o merma).
+ *
+ * Lee y escribe en dos pasos a propósito: el inventario lo mueve una sola
+ * persona desde una sola pantalla, y el único descuento que sí necesita ser
+ * atómico —el de lanzar una impresión— vive en el RPC `lanzar_impresion`.
+ */
+export async function ajustarStockInsumo(formData: FormData) {
+  const { supabase, user } = await requireUser();
+  const id = str(formData, "id");
+  const delta = num(formData, "delta");
+  if (!id || delta === 0) return;
+
+  const { data } = await supabase
+    .from("inventory_items")
+    .select("stock")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!data) return;
+
+  await supabase
+    .from("inventory_items")
+    .update({
+      // Un ajuste manual nunca deja el stock negativo: eso solo puede pasar al
+      // lanzar una impresión con más consumo del que hay registrado.
+      stock: Math.max(0, Number(data.stock) + delta),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  revalidatePath("/dashboard/inventario");
+  revalidatePath("/dashboard");
+}
+
+export async function toggleInventoryItemActivo(formData: FormData) {
+  const { supabase, user } = await requireUser();
+  const id = str(formData, "id");
+  const activo = str(formData, "activo") === "true";
+
+  await supabase
+    .from("inventory_items")
+    .update({ activo: !activo, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  revalidatePath("/dashboard/inventario");
+  revalidatePath("/dashboard/calculos/nuevo");
+}
+
+export async function deleteInventoryItem(formData: FormData) {
+  const { supabase, user } = await requireUser();
+  const id = str(formData, "id");
+
+  await supabase
+    .from("inventory_items")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  revalidatePath("/dashboard/inventario");
+  revalidatePath("/dashboard/calculos/nuevo");
+}
+
+// ------------------------------------------------------------
 // Cálculos / impresiones
 // ------------------------------------------------------------
 
@@ -266,6 +393,29 @@ function parseFilamentosUsados(raw: string): FilamentoUsado[] {
   }
 }
 
+/** Del cliente solo llegan qué insumo y cuánto: el precio lo pone el servidor. */
+function parseInsumosSeleccionados(
+  raw: string,
+): { item_id: string; cantidad: number }[] {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => {
+        const o = item as Record<string, unknown>;
+        return {
+          item_id: String(o.item_id ?? ""),
+          cantidad: Number(o.cantidad ?? 0),
+        };
+      })
+      .filter(
+        (i) => i.item_id && Number.isFinite(i.cantidad) && i.cantidad > 0,
+      );
+  } catch {
+    return [];
+  }
+}
+
 export async function savePrint(
   _prev: ActionState,
   formData: FormData,
@@ -279,6 +429,9 @@ export async function savePrint(
   const filamentosUsados = parseFilamentosUsados(
     String(formData.get("filamentos_usados") ?? "[]"),
   );
+  const insumosSeleccionados = parseInsumosSeleccionados(
+    String(formData.get("insumos_usados") ?? "[]"),
+  );
 
   if (!nombre) return { error: "El nombre del proyecto es obligatorio." };
   if (horas <= 0) return { error: "El tiempo de impresión debe ser mayor a 0." };
@@ -287,6 +440,8 @@ export async function savePrint(
     return { error: "Agrega al menos un filamento con gramos." };
   if (filamentosUsados.length > MAX_FILAMENTOS)
     return { error: `Máximo ${MAX_FILAMENTOS} filamentos por impresión.` };
+  if (insumosSeleccionados.length > MAX_INSUMOS)
+    return { error: `Máximo ${MAX_INSUMOS} insumos por impresión.` };
 
   // La impresora tiene que ser del usuario: el id viaja en un campo oculto.
   const { data: printer } = await supabase
@@ -316,6 +471,46 @@ export async function savePrint(
   if (!filamentos || filamentos.length !== filamentosUsados.length)
     return { error: "Alguno de los filamentos seleccionados ya no existe." };
 
+  // Mismo criterio con los insumos: el costo unitario y el comportamiento frente
+  // al desperdicio salen de la base, no del formulario, y quedan congelados en
+  // la línea guardada.
+  const insumosUsados: InsumoUsado[] = [];
+
+  if (insumosSeleccionados.length > 0) {
+    const { data: items, error: itemsError } = await supabase
+      .from("inventory_items")
+      .select("id, costo_clp_unidad, aplica_desperdicio, usa_en_calculo")
+      .eq("user_id", user.id)
+      .in(
+        "id",
+        insumosSeleccionados.map((i) => i.item_id),
+      );
+
+    if (itemsError) return { error: itemsError.message };
+
+    // Contra los ids únicos y no contra las líneas: repetir un insumo en dos
+    // filas es válido (se suman), y comparar largos daría un error engañoso.
+    const porId = new Map((items ?? []).map((i) => [i.id, i]));
+    const idsPedidos = new Set(insumosSeleccionados.map((i) => i.item_id));
+    if (porId.size !== idsPedidos.size)
+      return { error: "Alguno de los insumos seleccionados ya no existe." };
+
+    for (const seleccion of insumosSeleccionados) {
+      const item = porId.get(seleccion.item_id)!;
+      if (!item.usa_en_calculo)
+        return {
+          error: "Uno de los insumos está marcado como repuesto de taller.",
+        };
+
+      insumosUsados.push({
+        item_id: seleccion.item_id,
+        cantidad: seleccion.cantidad,
+        costo_unitario: Number(item.costo_clp_unidad),
+        aplica_desperdicio: Boolean(item.aplica_desperdicio),
+      });
+    }
+  }
+
   const desperdicioPct = num(formData, "desperdicio_pct");
   const ivaPct = num(formData, "iva_pct", 19);
 
@@ -323,6 +518,7 @@ export async function savePrint(
     tiempoImpresionHoras: horas,
     filamentosUsados,
     filamentos,
+    insumosUsados,
     tarifaLuzClpKwh: num(formData, "tarifa_luz_clp_kwh"),
     consumoImpresoraW: num(formData, "consumo_impresora_w"),
     tarifaManoObraClpHora: num(formData, "tarifa_mano_obra_clp_hora"),
@@ -339,7 +535,9 @@ export async function savePrint(
     printer_id: printerId,
     tiempo_impresion_horas: horas,
     filamentos_usados: filamentosUsados,
+    insumos_usados: insumosUsados,
     costo_filamento: round(breakdown.costoFilamento),
+    costo_insumos: round(breakdown.costoInsumos),
     costo_luz: round(breakdown.costoLuz),
     costo_mano_obra: round(breakdown.costoManoObra),
     costo_depreciacion: round(breakdown.costoDepreciacion),

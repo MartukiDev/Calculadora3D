@@ -7,7 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Qué es
 
 Calculadora de costos de impresión 3D: multi-usuario, multi-impresora, con
-inventario de filamentos y descuento de stock al lanzar una impresión.
+inventario de filamentos, inventario de insumos de taller (NFC, argollas,
+boquillas) y descuento de stock al lanzar una impresión.
 Next.js 16 (App Router) · React 19 · TypeScript · Tailwind v4 · Supabase.
 
 El documento funcional y de diseño original está en
@@ -38,8 +39,8 @@ cambiar el esquema, edita ese archivo, no escribas una migración suelta.
 ### Supabase es la única fuente de verdad
 
 `localStorage` es solo caché de lectura y borrador en progreso (`src/lib/cache.ts`):
-`settings_cache:`, `filaments_cache:`, `printers_cache:`, `calc_draft:`, todos por
-`userId`. **Solo se escribe con lo que Supabase ya confirmó**, nunca con el estado
+`settings_cache:`, `filaments_cache:`, `printers_cache:`, `inventory_cache:`,
+`calc_draft:`, todos por `userId`. **Solo se escribe con lo que Supabase ya confirmó**, nunca con el estado
 del formulario. Se usa como fallback cuando la carga falla, mostrando `CacheBadge`.
 
 Cabo suelto conocido: `clearAllCache` no está conectado a nada. `logout` es una
@@ -62,8 +63,9 @@ sesión. `/` es **pública** (landing) y solo redirige a `/dashboard` si hay usu
 Todo `/dashboard/*` es `force-dynamic` (declarado en su layout): depende de la sesión
 y de datos por usuario, nunca se prerenderiza.
 
-Las constantes de dominio (`MAX_FILAMENTOS = 4`, `STOCK_BAJO_GRAMOS = 50`) viven en
-`src/lib/types.ts`, junto a los tipos de fila. No las hardcodees.
+Las constantes de dominio (`MAX_FILAMENTOS = 4`, `MAX_INSUMOS = 8`,
+`STOCK_BAJO_GRAMOS = 50`, `UNIDADES`) viven en `src/lib/types.ts`, junto a los tipos
+de fila. No las hardcodees.
 
 ### Dónde vive cada costo
 
@@ -79,22 +81,51 @@ siendo editables **solo para ese cálculo**; cambiar de impresora los vuelve a
 precargar. La fórmula está en `src/lib/calc.ts` y no depende de dónde vengan los
 números.
 
+### Inventario de insumos
+
+`inventory_items` es el inventario de todo lo que no es filamento: tags NFC,
+argollas, imanes, boquillas. Dos banderas por ítem deciden cómo participa:
+
+- **`usa_en_calculo`** — los repuestos de taller (boquillas, correas) se controlan
+  igual que el resto pero no son parte del producto, así que no aparecen en el
+  selector de la calculadora.
+- **`aplica_desperdicio`** — el `%` de desperdicio modela fallas de impresión: un
+  NFC embebido se pierde con la pieza, una bolsa de embalaje no. Por eso lo decide
+  el ítem y no la fórmula.
+
+La **unidad es por ítem** (`u`, `g`, `ml`, `m`…) porque un taller mezcla piezas
+contables con material a granel, y por lo mismo el umbral de stock bajo es
+`stock_minimo` por ítem (`0` = sin alerta), no una constante global como en
+filamentos. La `categoria` es texto libre, con las ya usadas ofrecidas en un
+`datalist`.
+
+En `calcularCostos`, `subtotal` incluye **todos** los insumos aunque a algunos no
+se les aplique el desperdicio. Es deliberado: así `costoTotal - subtotal` sigue
+siendo exactamente el recargo por desperdicio, que es lo que derivan el desglose
+(`CostLayerStack`) y los reportes (`src/lib/report.ts`). El costo real es
+`(base + insumosConDesperdicio) × (1 + d) + insumosSinDesperdicio`.
+
 ### El cliente previsualiza, el servidor recalcula
 
 `PrintCalculator` calcula en tiempo real para mostrar el desglose, pero
 `savePrint` (`src/app/dashboard/actions.ts`) **vuelve a consultar los precios reales
-de los filamentos y recalcula con `calcularCostos` antes de guardar**. Nunca confíes
-en los montos que llegan del formulario.
+de los filamentos y de los insumos y recalcula con `calcularCostos` antes de
+guardar**. Del formulario solo llega qué se usó y cuánto; nunca confíes en los
+montos.
 
 Los costos quedan **congelados** en la fila de `prints` — no se re-derivan al leer.
-Por eso al editar, `draftFromPrint` reconstruye las tarifas por hora dividiendo el
-monto guardado por las horas.
+Cada línea de `insumos_usados` guarda además su `costo_unitario` y su
+`aplica_desperdicio` del momento, para que subir el precio de las argollas no
+reescriba cálculos viejos. Por eso al editar, `draftFromPrint` reconstruye las
+tarifas por hora dividiendo el monto guardado por las horas.
 
 ### Operaciones atómicas vía RPC
 
 - **`lanzar_impresion`** — único camino que toca el stock. Descuenta los gramos de
-  cada filamento y marca `lanzada` en una transacción. Es irreversible: pide
-  confirmación explícita y los cálculos lanzados ya no se editan ni se borran.
+  cada filamento, las cantidades de cada insumo y marca `lanzada` en una
+  transacción. Es irreversible: pide confirmación explícita y los cálculos lanzados
+  ya no se editan ni se borran. (El `±` del inventario sí lee y escribe en dos
+  pasos: es un ajuste manual de una sola persona, no necesita ser atómico.)
 - **`set_impresora_default`** — un índice único parcial impide dos predeterminadas
   por usuario, así que desmarcar y marcar tienen que ir en la misma transacción.
 

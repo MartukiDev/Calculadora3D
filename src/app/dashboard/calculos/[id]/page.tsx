@@ -5,8 +5,14 @@ import { CostLayerStack } from "@/components/CostLayerStack";
 import { FilamentChip } from "@/components/FilamentChip";
 import { GlassPanel } from "@/components/GlassPanel";
 import { Alert, StatusBadge } from "@/components/ui";
-import { formatDate, formatGramos, formatHoras } from "@/lib/format";
-import type { Filament, Print, Printer } from "@/lib/types";
+import {
+  formatCantidad,
+  formatCLP,
+  formatDate,
+  formatGramos,
+  formatHoras,
+} from "@/lib/format";
+import type { Filament, InventoryItem, Print, Printer } from "@/lib/types";
 import { ClearDraft } from "../ClearDraft";
 import { PrintActions } from "./PrintActions";
 
@@ -35,18 +41,24 @@ export default async function CalculoDetallePage({
   const print = data as Print;
 
   const filamentIds = (print.filamentos_usados ?? []).map((f) => f.filament_id);
-  const [{ data: filamentsData }, { data: printerData }] = await Promise.all([
-    filamentIds.length
-      ? supabase.from("filaments").select("*").in("id", filamentIds)
-      : Promise.resolve({ data: [] }),
-    print.printer_id
-      ? supabase
-          .from("printers")
-          .select("*")
-          .eq("id", print.printer_id)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
-  ]);
+  const insumoIds = (print.insumos_usados ?? []).map((i) => i.item_id);
+
+  const [{ data: filamentsData }, { data: printerData }, { data: itemsData }] =
+    await Promise.all([
+      filamentIds.length
+        ? supabase.from("filaments").select("*").in("id", filamentIds)
+        : Promise.resolve({ data: [] }),
+      print.printer_id
+        ? supabase
+            .from("printers")
+            .select("*")
+            .eq("id", print.printer_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      insumoIds.length
+        ? supabase.from("inventory_items").select("*").in("id", insumoIds)
+        : Promise.resolve({ data: [] }),
+    ]);
 
   const impresora = printerData as Printer | null;
 
@@ -54,25 +66,38 @@ export default async function CalculoDetallePage({
     ((filamentsData ?? []) as Filament[]).map((f) => [f.id, f]),
   );
 
+  const insumos = new Map(
+    ((itemsData ?? []) as InventoryItem[]).map((i) => [i.id, i]),
+  );
+
   const breakdown = {
     costoFilamento: Number(print.costo_filamento),
     costoLuz: Number(print.costo_luz),
     costoManoObra: Number(print.costo_mano_obra),
     costoDepreciacion: Number(print.costo_depreciacion),
+    costoInsumos: Number(print.costo_insumos),
     subtotal:
       Number(print.costo_filamento) +
       Number(print.costo_luz) +
       Number(print.costo_mano_obra) +
-      Number(print.costo_depreciacion),
+      Number(print.costo_depreciacion) +
+      Number(print.costo_insumos),
     costoTotal: Number(print.costo_total),
     precioNeto: Number(print.precio_neto),
     precioFinalConIva: Number(print.precio_final_con_iva),
   };
 
-  const stockInsuficiente = (print.filamentos_usados ?? []).filter((fu) => {
+  const filamentoInsuficiente = (print.filamentos_usados ?? []).filter((fu) => {
     const f = filamentos.get(fu.filament_id);
     return f && Number(fu.gramos) > Number(f.stock_gramos);
   });
+
+  const insumoInsuficiente = (print.insumos_usados ?? []).filter((iu) => {
+    const item = insumos.get(iu.item_id);
+    return item && Number(iu.cantidad) > Number(item.stock);
+  });
+
+  const stockInsuficiente = [...filamentoInsuficiente, ...insumoInsuficiente];
 
   return (
     <div className="space-y-6">
@@ -195,7 +220,7 @@ export default async function CalculoDetallePage({
               </ul>
             )}
 
-            {print.status === "borrador" && stockInsuficiente.length > 0 && (
+            {print.status === "borrador" && filamentoInsuficiente.length > 0 && (
               <div className="mt-4">
                 <Alert tone="warn">
                   El stock actual no alcanza para todos los filamentos de este
@@ -204,6 +229,54 @@ export default async function CalculoDetallePage({
               </div>
             )}
           </GlassPanel>
+
+          {(print.insumos_usados ?? []).length > 0 && (
+            <GlassPanel title="Insumos usados">
+              <ul className="space-y-2">
+                {print.insumos_usados.map((iu, i) => {
+                  const item = insumos.get(iu.item_id);
+                  return (
+                    <li
+                      key={`${iu.item_id}-${i}`}
+                      className="glass-row flex items-center gap-3 px-4 py-3"
+                    >
+                      <span
+                        className="h-8 w-8 shrink-0 rounded-lg border border-white/20 shadow-[inset_0_2px_4px_rgba(255,255,255,0.3)]"
+                        style={{
+                          backgroundColor:
+                            item?.color_hex ?? "rgba(255,255,255,0.08)",
+                        }}
+                        aria-hidden
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-white/90">
+                          {item?.nombre ?? "Insumo eliminado"}
+                        </p>
+                        <p className="num mt-0.5 text-xs text-muted">
+                          {formatCantidad(iu.cantidad, item?.unidad ?? "u")} ×{" "}
+                          {formatCLP(iu.costo_unitario)}
+                        </p>
+                      </div>
+                      <span className="num text-sm text-white/90">
+                        {formatCLP(
+                          Number(iu.cantidad) * Number(iu.costo_unitario),
+                        )}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {print.status === "borrador" && insumoInsuficiente.length > 0 && (
+                <div className="mt-4">
+                  <Alert tone="warn">
+                    El stock actual no alcanza para todos los insumos de este
+                    cálculo. Si lanzas igual, el stock quedará negativo.
+                  </Alert>
+                </div>
+              )}
+            </GlassPanel>
+          )}
         </div>
 
         <GlassPanel title="Desglose de costos">

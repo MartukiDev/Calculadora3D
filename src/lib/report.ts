@@ -7,6 +7,7 @@ export type ReportTotals = {
   luz: number;
   manoObra: number;
   depreciacion: number;
+  insumos: number;
   subtotal: number;
   desperdicio: number;
   costoTotal: number;
@@ -31,6 +32,7 @@ const vacio = (): ReportTotals => ({
   luz: 0,
   manoObra: 0,
   depreciacion: 0,
+  insumos: 0,
   subtotal: 0,
   desperdicio: 0,
   costoTotal: 0,
@@ -46,7 +48,7 @@ const vacio = (): ReportTotals => ({
  * Nada se recalcula: cada `print` guarda sus costos congelados al guardarse, así
  * que un cambio posterior de tarifas no reescribe la historia. El desperdicio y
  * el IVA no se almacenan, se derivan — el desperdicio es lo que el costo total
- * agrega sobre la suma de los cuatro componentes, y el IVA lo que el precio final
+ * agrega sobre la suma de los cinco componentes, y el IVA lo que el precio final
  * agrega sobre el neto.
  */
 export function acumular(prints: Print[]): ReportTotals {
@@ -55,7 +57,8 @@ export function acumular(prints: Print[]): ReportTotals {
     const luz = n(print.costo_luz);
     const manoObra = n(print.costo_mano_obra);
     const depreciacion = n(print.costo_depreciacion);
-    const subtotal = filamento + luz + manoObra + depreciacion;
+    const insumos = n(print.costo_insumos);
+    const subtotal = filamento + luz + manoObra + depreciacion + insumos;
     const costoTotal = n(print.costo_total);
     const neto = n(print.precio_neto);
     const final = n(print.precio_final_con_iva);
@@ -66,6 +69,7 @@ export function acumular(prints: Print[]): ReportTotals {
     acc.luz += luz;
     acc.manoObra += manoObra;
     acc.depreciacion += depreciacion;
+    acc.insumos += insumos;
     acc.subtotal += subtotal;
     acc.desperdicio += costoTotal - subtotal;
     acc.costoTotal += costoTotal;

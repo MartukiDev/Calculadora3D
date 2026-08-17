@@ -9,11 +9,14 @@ import { GlassPanel } from "@/components/GlassPanel";
 import { Alert, EmptyState, SubmitButton } from "@/components/ui";
 import { calcularCostos } from "@/lib/calc";
 import { clearDraft, getDraft, setDraft } from "@/lib/cache";
-import { formatCLP, formatGramos } from "@/lib/format";
+import { formatCantidad, formatCLP, formatGramos } from "@/lib/format";
 import {
   MAX_FILAMENTOS,
+  MAX_INSUMOS,
   type Filament,
   type FilamentoUsado,
+  type InsumoUsado,
+  type InventoryItem,
   type Print,
   type Printer,
   type UserSettings,
@@ -25,6 +28,7 @@ type Draft = {
   notas: string;
   printer_id: string;
   seleccion: { filament_id: string; gramos: string }[];
+  insumos: { item_id: string; cantidad: string }[];
   overrides: {
     tarifa_luz_clp_kwh: string;
     consumo_impresora_w: string;
@@ -65,6 +69,9 @@ function draftInicial(settings: UserSettings, printers: Printer[]): Draft {
     notas: "",
     printer_id: printer?.id ?? "",
     seleccion: [{ filament_id: "", gramos: "" }],
+    // Vacío a propósito: la mayoría de las impresiones no lleva insumos y una
+    // fila en blanco de más solo estorba.
+    insumos: [],
     overrides: overridesDe(settings, printer),
     margen: "0",
   };
@@ -90,6 +97,10 @@ function draftFromPrint(
             gramos: String(f.gramos),
           }))
         : [{ filament_id: "", gramos: "" }],
+    insumos: (print.insumos_usados ?? []).map((i) => ({
+      item_id: i.item_id,
+      cantidad: String(i.cantidad),
+    })),
     overrides: {
       // Los costos por hora no se persisten en prints: los reconstruimos
       // dividiendo el monto guardado por las horas, y el resto sale de la máquina.
@@ -125,12 +136,15 @@ export function PrintCalculator({
   settings,
   filamentos,
   impresoras,
+  insumos,
   userId,
   print,
 }: {
   settings: UserSettings;
   filamentos: Filament[];
   impresoras: Printer[];
+  /** Solo los activos marcados como usables en cálculos. */
+  insumos: InventoryItem[];
   userId: string;
   print?: Print;
 }) {
@@ -161,6 +175,8 @@ export function PrintCalculator({
       // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización inicial desde un sistema externo (localStorage)
       setDraftState({
         ...saved,
+        // Los borradores anteriores al inventario no traen esta lista.
+        insumos: saved.insumos ?? [],
         printer_id: printerValido
           ? saved.printer_id
           : (elegirDefault(impresoras)?.id ?? ""),
@@ -185,6 +201,11 @@ export function PrintCalculator({
   const filamentosPorId = useMemo(
     () => new Map(filamentos.map((f) => [f.id, f])),
     [filamentos],
+  );
+
+  const insumosPorId = useMemo(
+    () => new Map(insumos.map((i) => [i.id, i])),
+    [insumos],
   );
 
   const impresoraActual = impresoras.find((p) => p.id === draft.printer_id);
@@ -214,10 +235,27 @@ export function PrintCalculator({
     .filter((s) => s.filament_id && toNum(s.gramos) > 0)
     .map((s) => ({ filament_id: s.filament_id, gramos: toNum(s.gramos) }));
 
+  // La previsualización resuelve el costo desde el catálogo; al guardar, el
+  // servidor lo vuelve a buscar y es ese el que queda congelado.
+  const insumosValidos: InsumoUsado[] = draft.insumos.flatMap((s) => {
+    const item = insumosPorId.get(s.item_id);
+    const cantidad = toNum(s.cantidad);
+    if (!item || cantidad <= 0) return [];
+    return [
+      {
+        item_id: item.id,
+        cantidad,
+        costo_unitario: Number(item.costo_clp_unidad),
+        aplica_desperdicio: item.aplica_desperdicio,
+      },
+    ];
+  });
+
   const breakdown = calcularCostos({
     tiempoImpresionHoras: toNum(draft.horas),
     filamentosUsados: seleccionValida,
     filamentos,
+    insumosUsados: insumosValidos,
     tarifaLuzClpKwh: toNum(draft.overrides.tarifa_luz_clp_kwh),
     consumoImpresoraW: toNum(draft.overrides.consumo_impresora_w),
     tarifaManoObraClpHora: toNum(draft.overrides.tarifa_mano_obra_clp_hora),
@@ -240,8 +278,20 @@ export function PrintCalculator({
     })
     .filter(Boolean) as { filament: Filament; gramos: number; stock: number }[];
 
+  const excesosInsumos = draft.insumos
+    .map((s) => {
+      const item = insumosPorId.get(s.item_id);
+      if (!item) return null;
+      const cantidad = toNum(s.cantidad);
+      return cantidad > Number(item.stock) ? { item, cantidad } : null;
+    })
+    .filter(Boolean) as { item: InventoryItem; cantidad: number }[];
+
   const idsUsados = draft.seleccion.map((s) => s.filament_id).filter(Boolean);
   const duplicados = idsUsados.length !== new Set(idsUsados).size;
+
+  const idsInsumos = draft.insumos.map((s) => s.item_id).filter(Boolean);
+  const duplicadosInsumos = idsInsumos.length !== new Set(idsInsumos).size;
 
   const update = (patch: Partial<Draft>) =>
     setDraftState((prev) => ({ ...prev, ...patch }));
@@ -259,6 +309,17 @@ export function PrintCalculator({
     setDraftState((prev) => ({
       ...prev,
       seleccion: prev.seleccion.map((s, i) =>
+        i === index ? { ...s, ...patch } : s,
+      ),
+    }));
+
+  const updateInsumo = (
+    index: number,
+    patch: Partial<{ item_id: string; cantidad: string }>,
+  ) =>
+    setDraftState((prev) => ({
+      ...prev,
+      insumos: prev.insumos.map((s, i) =>
         i === index ? { ...s, ...patch } : s,
       ),
     }));
@@ -303,6 +364,17 @@ export function PrintCalculator({
         type="hidden"
         name="filamentos_usados"
         value={JSON.stringify(seleccionValida)}
+      />
+      {/* Solo qué y cuánto: el precio lo resuelve el servidor contra la base. */}
+      <input
+        type="hidden"
+        name="insumos_usados"
+        value={JSON.stringify(
+          insumosValidos.map(({ item_id, cantidad }) => ({
+            item_id,
+            cantidad,
+          })),
+        )}
       />
       {(
         Object.keys(draft.overrides) as (keyof Draft["overrides"])[]
@@ -548,6 +620,146 @@ export function PrintCalculator({
                   />
                 );
               })}
+            </div>
+          )}
+        </GlassPanel>
+
+        <GlassPanel
+          title="Insumos"
+          description="NFC, argollas, imanes… suman al costo y se descuentan al lanzar"
+          actions={
+            insumos.length > 0 && draft.insumos.length < MAX_INSUMOS ? (
+              <button
+                type="button"
+                className="btn-ghost !py-2 text-xs"
+                onClick={() =>
+                  update({
+                    insumos: [...draft.insumos, { item_id: "", cantidad: "1" }],
+                  })
+                }
+              >
+                + Agregar
+              </button>
+            ) : null
+          }
+        >
+          {insumos.length === 0 ? (
+            <p className="text-sm text-muted">
+              No tienes insumos marcados como usables en cálculos.{" "}
+              <Link href="/dashboard/inventario" className="underline">
+                Ir al inventario
+              </Link>
+            </p>
+          ) : draft.insumos.length === 0 ? (
+            <p className="text-sm text-muted">
+              Esta impresión no lleva insumos. Agrégalos si la pieza incluye un
+              tag NFC, una argolla o cualquier otra cosa del inventario.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {draft.insumos.map((slot, index) => {
+                const item = insumosPorId.get(slot.item_id);
+                return (
+                  // Mismo patrón que los filamentos: en mobile la cantidad baja
+                  // a su propia fila para que el nombre del insumo no se corte.
+                  <div
+                    key={index}
+                    className="grid grid-cols-[auto_1fr_auto] items-center gap-3 sm:grid-cols-[auto_1fr_7rem_auto]"
+                  >
+                    <span
+                      className="h-9 w-9 rounded-xl border border-white/20 shadow-[inset_0_2px_4px_rgba(255,255,255,0.3)]"
+                      style={{
+                        backgroundColor:
+                          item?.color_hex ?? "rgba(255,255,255,0.08)",
+                      }}
+                      aria-hidden
+                    />
+                    <select
+                      value={slot.item_id}
+                      onChange={(e) =>
+                        updateInsumo(index, { item_id: e.target.value })
+                      }
+                      className="field-input min-w-0"
+                      aria-label={`Insumo ${index + 1}`}
+                    >
+                      <option value="" className="bg-[#1a1e25]">
+                        Seleccionar insumo…
+                      </option>
+                      {insumos.map((opt) => (
+                        <option
+                          key={opt.id}
+                          value={opt.id}
+                          className="bg-[#1a1e25]"
+                        >
+                          {opt.nombre} ({formatCantidad(opt.stock, opt.unidad)})
+                        </option>
+                      ))}
+                    </select>
+                    <div className="relative col-span-3 row-start-2 sm:col-span-1 sm:col-start-3 sm:row-start-1">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={slot.cantidad}
+                        onChange={(e) =>
+                          updateInsumo(index, { cantidad: e.target.value })
+                        }
+                        className="field-input-num pr-10"
+                        placeholder="0"
+                        aria-label={`Cantidad insumo ${index + 1}`}
+                      />
+                      <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-white/40">
+                        {item?.unidad ?? ""}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        update({
+                          insumos: draft.insumos.filter((_, i) => i !== index),
+                        })
+                      }
+                      className="col-start-3 row-start-1 rounded-lg px-2 py-2 text-muted transition hover:bg-white/[0.06] hover:text-white/85 sm:col-start-4"
+                      aria-label="Quitar insumo"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {duplicadosInsumos && (
+            <div className="mt-4">
+              <Alert tone="warn">
+                Hay un insumo repetido. Súmalo en una sola fila para que el
+                descuento de stock sea correcto.
+              </Alert>
+            </div>
+          )}
+
+          {excesosInsumos.length > 0 && (
+            <div className="mt-4">
+              <Alert tone="warn">
+                Estás usando más de lo que tienes:{" "}
+                {excesosInsumos
+                  .map(
+                    (e) =>
+                      `${e.item.nombre} (${formatCantidad(e.cantidad, e.item.unidad)} de ${formatCantidad(e.item.stock, e.item.unidad)})`,
+                  )
+                  .join(", ")}
+                . Puedes guardar igual, pero el stock quedará negativo al lanzar.
+              </Alert>
+            </div>
+          )}
+
+          {insumosValidos.length > 0 && (
+            <div className="mt-5 flex items-center justify-between border-t border-white/[0.08] pt-4 text-sm">
+              <span className="text-muted">Total insumos</span>
+              <span className="num text-white/90">
+                {formatCLP(breakdown.costoInsumos)}
+              </span>
             </div>
           )}
         </GlassPanel>

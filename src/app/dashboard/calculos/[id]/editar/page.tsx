@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { Filament, Print, Printer, UserSettings } from "@/lib/types";
+import type {
+  Filament,
+  InventoryItem,
+  Print,
+  Printer,
+  UserSettings,
+} from "@/lib/types";
 import { PrintCalculator } from "../../PrintCalculator";
 
 export default async function EditarCalculoPage({
@@ -15,20 +21,28 @@ export default async function EditarCalculoPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [printRes, settingsRes, filamentsRes, printersRes] = await Promise.all([
-    supabase.from("prints").select("*").eq("id", id).maybeSingle(),
-    supabase.from("user_settings").select("*").maybeSingle(),
-    supabase
-      .from("filaments")
-      .select("*")
-      .eq("activo", true)
-      .order("marca", { ascending: true }),
-    supabase
-      .from("printers")
-      .select("*")
-      .order("es_default", { ascending: false })
-      .order("nombre", { ascending: true }),
-  ]);
+  const [printRes, settingsRes, filamentsRes, printersRes, insumosRes] =
+    await Promise.all([
+      supabase.from("prints").select("*").eq("id", id).maybeSingle(),
+      supabase.from("user_settings").select("*").maybeSingle(),
+      supabase
+        .from("filaments")
+        .select("*")
+        .eq("activo", true)
+        .order("marca", { ascending: true }),
+      supabase
+        .from("printers")
+        .select("*")
+        .order("es_default", { ascending: false })
+        .order("nombre", { ascending: true }),
+      supabase
+        .from("inventory_items")
+        .select("*")
+        .eq("activo", true)
+        .eq("usa_en_calculo", true)
+        .order("categoria", { ascending: true })
+        .order("nombre", { ascending: true }),
+    ]);
 
   if (!printRes.data) notFound();
   const print = printRes.data as Print;
@@ -68,6 +82,7 @@ export default async function EditarCalculoPage({
         settings={settings}
         filamentos={(filamentsRes.data ?? []) as Filament[]}
         impresoras={impresoras}
+        insumos={(insumosRes.data ?? []) as InventoryItem[]}
         userId={user?.id ?? ""}
         print={print}
       />

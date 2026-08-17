@@ -2,8 +2,8 @@
 
 App web personal para calcular el costo real de cada impresión 3D, administrar
 varias impresoras con sus propios costos, gestionar el inventario de filamentos
-(hasta 4 por impresión, multi-color) y descontar stock automáticamente al lanzar
-una impresión.
+(hasta 4 por impresión, multi-color) y de insumos de taller (tags NFC, argollas,
+imanes, boquillas) y descontar stock automáticamente al lanzar una impresión.
 
 **Stack:** Next.js 16 (App Router) · TypeScript · Tailwind CSS v4 · Supabase
 (Auth + Postgres + RLS). El detalle funcional y de diseño está en
@@ -160,7 +160,8 @@ src/
     dashboard/
       configuracion/ tarifa de luz e IVA
       impresoras/    CRUD del parque de máquinas
-      filamentos/    CRUD de inventario
+      filamentos/    CRUD de inventario de filamento
+      inventario/    CRUD de insumos (NFC, argollas, boquillas…)
       calculos/      calculadora, historial y detalle
   components/        GlassPanel · CostLayerStack · FilamentChip · ui
     landing/         secciones de la portada

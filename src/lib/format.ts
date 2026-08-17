@@ -38,6 +38,14 @@ export function formatHoras(value: number | string | null | undefined): string {
   return `${formatNumber(value)} h`;
 }
 
+/** Cantidad de un insumo con su unidad: la unidad la define el ítem, no el código. */
+export function formatCantidad(
+  value: number | string | null | undefined,
+  unidad: string,
+): string {
+  return `${formatNumber(value)} ${unidad}`;
+}
+
 /**
  * Fecha de hoy como YYYY-MM-DD en horario de Chile.
  *

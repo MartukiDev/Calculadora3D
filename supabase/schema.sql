@@ -50,6 +50,35 @@ create table if not exists public.filaments (
   updated_at timestamptz not null default now()
 );
 
+-- Inventario de insumos que no son filamento: NFC, argollas, imanes, boquillas.
+--
+-- La unidad se elige por ítem porque un taller mezcla piezas contables con
+-- material a granel, y por lo mismo el umbral de stock bajo también es por ítem:
+-- 10 argollas es poco, 10 metros de cadena no.
+create table if not exists public.inventory_items (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  nombre text not null,
+  -- Texto libre a propósito: cada taller nombra sus cosas distinto y una lista
+  -- cerrada obligaría a editar el código cada vez que aparece un insumo nuevo.
+  categoria text not null default '',
+  unidad text not null default 'u' check (unidad <> ''),
+  color_hex text not null default '#3ddad7',
+  costo_clp_unidad numeric(10,2) not null default 0,
+  stock numeric(10,2) not null default 0,
+  stock_minimo numeric(10,2) not null default 0 check (stock_minimo >= 0),
+  -- Los repuestos de taller (boquillas, correas) se controlan igual que el resto
+  -- pero no son parte del producto, así que no aparecen en la calculadora.
+  usa_en_calculo boolean not null default true,
+  -- El % de desperdicio modela fallas de impresión: un NFC embebido se pierde
+  -- con la pieza, una bolsa de embalaje no. Lo decide el ítem, no la fórmula.
+  aplica_desperdicio boolean not null default false,
+  nota text,
+  activo boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 -- Cálculos / impresiones
 create table if not exists public.prints (
   id uuid primary key default gen_random_uuid(),
@@ -82,10 +111,20 @@ create table if not exists public.prints (
 alter table public.prints
   add column if not exists printer_id uuid references public.printers(id) on delete set null;
 
+-- Insumos consumidos por el cálculo. Cada línea congela costo_unitario y
+-- aplica_desperdicio: si mañana sube el precio de las argollas, el cálculo viejo
+-- tiene que seguir contando lo que costó ese día.
+alter table public.prints
+  add column if not exists insumos_usados jsonb not null default '[]';
+alter table public.prints
+  add column if not exists costo_insumos numeric(10,2) not null default 0;
+
 create index if not exists prints_user_status_idx on public.prints (user_id, status);
 create index if not exists prints_user_printer_idx on public.prints (user_id, printer_id);
 create index if not exists filaments_user_activo_idx on public.filaments (user_id, activo);
 create index if not exists printers_user_activo_idx on public.printers (user_id, activo);
+create index if not exists inventory_items_user_activo_idx
+  on public.inventory_items (user_id, activo);
 
 -- Una sola impresora predeterminada por usuario, garantizado por el motor.
 create unique index if not exists printers_user_default_idx
@@ -146,6 +185,7 @@ alter table public.user_settings enable row level security;
 alter table public.filaments enable row level security;
 alter table public.prints enable row level security;
 alter table public.printers enable row level security;
+alter table public.inventory_items enable row level security;
 
 drop policy if exists "user_settings_isolation" on public.user_settings;
 create policy "user_settings_isolation" on public.user_settings
@@ -161,6 +201,10 @@ create policy "filaments_isolation" on public.filaments
 
 drop policy if exists "prints_isolation" on public.prints;
 create policy "prints_isolation" on public.prints
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+drop policy if exists "inventory_items_isolation" on public.inventory_items;
+create policy "inventory_items_isolation" on public.inventory_items
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- ------------------------------------------------------------
@@ -197,6 +241,9 @@ create trigger on_auth_user_created
 
 -- ------------------------------------------------------------
 -- RPC: lanzar impresión y descontar stock (atómico)
+--
+-- Único camino que toca el stock, tanto de filamentos como de insumos: los dos
+-- descuentos y el cambio de estado ocurren en la misma transacción.
 -- ------------------------------------------------------------
 
 create or replace function public.lanzar_impresion(p_print_id uuid)
@@ -208,10 +255,12 @@ as $$
 declare
   v_user_id uuid;
   v_filamentos jsonb;
+  v_insumos jsonb;
   v_item jsonb;
   v_stock_actual numeric;
 begin
-  select user_id, filamentos_usados into v_user_id, v_filamentos
+  select user_id, filamentos_usados, coalesce(insumos_usados, '[]'::jsonb)
+    into v_user_id, v_filamentos, v_insumos
   from public.prints
   where id = p_print_id and status = 'borrador'
   for update;
@@ -235,6 +284,23 @@ begin
     set stock_gramos = stock_gramos - (v_item->>'gramos')::numeric,
         updated_at = now()
     where id = (v_item->>'filament_id')::uuid and user_id = v_user_id;
+  end loop;
+
+  for v_item in select * from jsonb_array_elements(v_insumos)
+  loop
+    select stock into v_stock_actual
+    from public.inventory_items
+    where id = (v_item->>'item_id')::uuid and user_id = v_user_id
+    for update;
+
+    if v_stock_actual is null then
+      raise exception 'Insumo % no encontrado', v_item->>'item_id';
+    end if;
+
+    update public.inventory_items
+    set stock = stock - (v_item->>'cantidad')::numeric,
+        updated_at = now()
+    where id = (v_item->>'item_id')::uuid and user_id = v_user_id;
   end loop;
 
   update public.prints
