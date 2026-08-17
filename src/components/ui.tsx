@@ -2,7 +2,7 @@
 
 import { useEffect, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
-import type { PrintStatus } from "@/lib/types";
+import type { PrintStatus, ProjectStatus } from "@/lib/types";
 
 export function SubmitButton({
   children,
@@ -26,6 +26,21 @@ export function StatusBadge({ status }: { status: PrintStatus }) {
     return (
       <span className="badge border-accent-2/30 bg-accent-2/12 text-accent-2">
         <span className="h-1.5 w-1.5 rounded-full bg-accent-2" /> Lanzada
+      </span>
+    );
+  }
+  return (
+    <span className="badge border-white/15 bg-white/[0.06] text-white/70">
+      <span className="h-1.5 w-1.5 rounded-full bg-white/40" /> Borrador
+    </span>
+  );
+}
+
+export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
+  if (status === "lanzado") {
+    return (
+      <span className="badge border-accent-2/30 bg-accent-2/12 text-accent-2">
+        <span className="h-1.5 w-1.5 rounded-full bg-accent-2" /> Lanzado
       </span>
     );
   }

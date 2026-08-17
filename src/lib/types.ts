@@ -105,6 +105,44 @@ export type Print = {
   updated_at: string;
 };
 
+export type ProjectStatus = "borrador" | "lanzado";
+
+/**
+ * Producto vendible: un cálculo repetido `cantidad` veces, más los insumos de
+ * armado y embalaje que no pertenecen a la impresión.
+ *
+ * Todo lo que declara es la **receta de una unidad** y `cantidad` multiplica la
+ * receta completa, así que el mismo proyecto entrega costo unitario y costo del
+ * lote sin que nadie multiplique a mano.
+ */
+export type Project = {
+  id: string;
+  user_id: string;
+  nombre: string;
+  descripcion: string | null;
+  color_hex: string;
+  /** Null si aún no le asociaron cálculo, o si el cálculo se eliminó después. */
+  print_id: string | null;
+  cantidad: number;
+  /** Insumos de armado por unidad; mismo shape congelado que en `Print`. */
+  insumos_usados: InsumoUsado[];
+  /** El margen es del proyecto: la pieza cuesta, el proyecto vende. */
+  margen_pct: number;
+  iva_pct: number;
+  status: ProjectStatus;
+  notas: string | null;
+  /** Los seis costos solo tienen valor una vez lanzado; antes se derivan en vivo. */
+  costo_pieza_unitario: number;
+  costo_insumos_unitario: number;
+  costo_unitario: number;
+  costo_total: number;
+  precio_neto: number;
+  precio_final_con_iva: number;
+  fecha_lanzamiento: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export const MATERIALES = [
   "PLA",
   "PLA+",
@@ -128,6 +166,12 @@ export const UNIDADES = ["u", "g", "ml", "m", "cm", "par", "set"] as const;
 export const MAX_FILAMENTOS = 4;
 export const MAX_INSUMOS = 8;
 export const STOCK_BAJO_GRAMOS = 50;
+
+/**
+ * Tope de unidades por proyecto. Existe para que un cero de más no dispare un
+ * descuento de stock irreversible de un millón de unidades.
+ */
+export const MAX_CANTIDAD_PROYECTO = 10000;
 
 /** El umbral de los insumos es por ítem; un mínimo en 0 significa "no me avises". */
 export const stockBajoInsumo = (

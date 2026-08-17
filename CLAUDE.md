@@ -8,7 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Calculadora de costos de impresión 3D: multi-usuario, multi-impresora, con
 inventario de filamentos, inventario de insumos de taller (NFC, argollas,
-boquillas) y descuento de stock al lanzar una impresión.
+boquillas), proyectos que producen un mismo cálculo en cantidad, y descuento de
+stock al lanzar.
 Next.js 16 (App Router) · React 19 · TypeScript · Tailwind v4 · Supabase.
 
 El documento funcional y de diseño original está en
@@ -40,7 +41,7 @@ cambiar el esquema, edita ese archivo, no escribas una migración suelta.
 
 `localStorage` es solo caché de lectura y borrador en progreso (`src/lib/cache.ts`):
 `settings_cache:`, `filaments_cache:`, `printers_cache:`, `inventory_cache:`,
-`calc_draft:`, todos por `userId`. **Solo se escribe con lo que Supabase ya confirmó**, nunca con el estado
+`projects_cache:`, `calc_draft:`, todos por `userId`. **Solo se escribe con lo que Supabase ya confirmó**, nunca con el estado
 del formulario. Se usa como fallback cuando la carga falla, mostrando `CacheBadge`.
 
 Cabo suelto conocido: `clearAllCache` no está conectado a nada. `logout` es una
@@ -105,6 +106,48 @@ siendo exactamente el recargo por desperdicio, que es lo que derivan el desglose
 (`CostLayerStack`) y los reportes (`src/lib/report.ts`). El costo real es
 `(base + insumosConDesperdicio) × (1 + d) + insumosSinDesperdicio`.
 
+### Proyectos
+
+Un proyecto es un **producto vendible**: un cálculo repetido `cantidad` veces más
+los insumos de armado y embalaje que no pertenecen a la impresión. Es **un solo
+cálculo por proyecto** (índice único parcial sobre `print_id`) porque el caso real
+es un mismo producto en cantidad, no un ensamblaje de piezas distintas.
+
+Dos reglas sostienen todo lo demás:
+
+- **La pieza cuesta, el proyecto vende.** El proyecto suma el `costo_total` ya
+  congelado del cálculo y aplica **su propio** margen; el `margen_pct` del `print`
+  se ignora dentro del proyecto. Aplicar los dos sería margen sobre margen.
+- **Todo lo declarado es la receta de UNA unidad**, y `cantidad` multiplica la
+  receta completa. Por eso el mismo proyecto entrega costo unitario y costo del
+  lote sin que nadie multiplique a mano.
+
+Los insumos del proyecto **no** pasan por el `%` de desperdicio: ese porcentaje
+modela fallas de impresión y ya viene cobrado dentro del `costo_total` del cálculo.
+Una caja de embalaje no se pierde porque falle una pieza.
+
+Mientras es `borrador` el costo se **deriva en vivo** del cálculo asociado, así que
+editarlo se refleja en el proyecto. Al lanzar, `lanzar_proyecto` **congela** las
+seis columnas de costo: el cálculo puede editarse o borrarse después y el proyecto
+ya cobró lo que cobró. Esa bifurcación vive en `breakdownDeProyecto`
+(`src/lib/project.ts`), no repartida por las páginas.
+
+`consolidarMateriales` (mismo archivo) es la razón de ser de la sección: cruza los
+filamentos e insumos del cálculo con los insumos de armado, **los suma en una fila
+por material** ×`cantidad` y los compara contra el stock. El cálculo sabe qué lleva
+una pieza y el inventario sabe qué hay, pero solo acá se cruzan. El faltante es una
+foto, no una reserva: dos borradores pueden reclamar el mismo carrete y los dos se
+ven en verde.
+
+Un cálculo dentro de un proyecto **no se lanza solo** — el botón desaparece y
+`lanzar_impresion` lo rechaza. Si no, el stock se descontaría dos veces, una por
+unidad y otra por lote.
+
+Cabo suelto conocido: `src/lib/report.ts` cuenta cada `print` **una vez**, así que
+un proyecto de 20 unidades aparece en los reportes como una sola impresión y con
+el precio del cálculo, no con el del proyecto. Falta decidir si los reportes suman
+proyectos o impresiones antes de tocar `acumular`.
+
 ### El cliente previsualiza, el servidor recalcula
 
 `PrintCalculator` calcula en tiempo real para mostrar el desglose, pero
@@ -121,13 +164,23 @@ tarifas por hora dividiendo el monto guardado por las horas.
 
 ### Operaciones atómicas vía RPC
 
-- **`lanzar_impresion`** — único camino que toca el stock. Descuenta los gramos de
-  cada filamento, las cantidades de cada insumo y marca `lanzada` en una
-  transacción. Es irreversible: pide confirmación explícita y los cálculos lanzados
-  ya no se editan ni se borran. (El `±` del inventario sí lee y escribe en dos
-  pasos: es un ajuste manual de una sola persona, no necesita ser atómico.)
+- **`lanzar_impresion`** — descuenta el stock de un cálculo suelto (×1) y lo marca
+  `lanzada` en una transacción. Rechaza los cálculos que pertenecen a un proyecto.
+- **`lanzar_proyecto`** — descuenta la receta ×`cantidad` (filamentos e insumos del
+  cálculo, más los insumos de armado), marca el cálculo `lanzada` y congela los
+  costos del proyecto. El congelado ocurre **dentro del RPC** y no en la server
+  action porque los montos tienen que salir de las mismas filas recién bloqueadas.
+- **`descontar_insumos` / `descontar_stock_print`** — los dos anteriores comparten
+  el descuento vía estos helpers; el multiplicador es lo único que cambia. Van sin
+  `security definer` a propósito: reciben el `user_id` por parámetro, así que como
+  definer una fuga de execute dejaría vaciar el stock ajeno. Llamados desde los RPC
+  corren igual con los privilegios del definer.
 - **`set_impresora_default`** — un índice único parcial impide dos predeterminadas
   por usuario, así que desmarcar y marcar tienen que ir en la misma transacción.
+
+Los tres primeros son irreversibles: piden confirmación explícita, y lo lanzado ya
+no se edita ni se borra. (El `±` del inventario sí lee y escribe en dos pasos: es
+un ajuste manual de una sola persona, no necesita ser atómico.)
 
 ### RLS
 
