@@ -112,7 +112,7 @@ export function ProjectForm({
       <GlassPanel>
         <EmptyState
           title="No tienes cálculos disponibles"
-          description="Un proyecto necesita un cálculo en borrador que no esté ya tomado por otro proyecto. Crea uno con la calculadora y vuelve."
+          description="Un proyecto necesita un cálculo en borrador, que no esté ya tomado por otro proyecto y que no sea de uso personal. Crea uno con la calculadora y vuelve."
           action={
             <Link href="/dashboard/calculos/nuevo" className="btn-primary mt-2">
               Ir a la calculadora

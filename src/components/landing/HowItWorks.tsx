@@ -20,7 +20,7 @@ const PASOS = [
     numero: "03",
     titulo: "Arma el cálculo, capa por capa",
     descripcion:
-      "Eliges la impresora y sus costos se precargan solos. Sumas tiempo, hasta 4 filamentos para piezas multicolor y los insumos que lleve la pieza; el desglose se construye en tiempo real.",
+      "Eliges la impresora y sus costos se precargan solos. Sumas tiempo, un filamento por cada color que lleve la pieza —sin tope— y los insumos que use; el desglose se construye en tiempo real.",
     icon: LayersIcon,
   },
   {

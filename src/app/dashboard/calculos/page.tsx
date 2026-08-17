@@ -11,6 +11,13 @@ import { formatCLP, formatDate, formatHoras } from "@/lib/format";
 import type { Filament, Print, Printer, PrintStatus } from "@/lib/types";
 import { HistoryFilters } from "./HistoryFilters";
 
+/**
+ * Cuántos puntos de color entran en la fila antes de comerse el nombre. Sin
+ * tope de filamentos por impresión, una pieza de doce colores empujaría todo
+ * lo demás fuera de la pantalla en mobile.
+ */
+const PUNTOS_VISIBLES = 5;
+
 type SearchParams = {
   status?: string;
   q?: string;
@@ -113,22 +120,32 @@ export default async function CalculosPage({
                   className="glass-row flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3.5 transition hover:bg-white/[0.08]"
                 >
                   <div className="flex -space-x-1.5">
-                    {(print.filamentos_usados ?? []).map((fu, i) => (
-                      <span
-                        key={`${fu.filament_id}-${i}`}
-                        className="h-6 w-6 rounded-full border border-white/25"
-                        style={{
-                          backgroundColor:
-                            colores.get(fu.filament_id)?.color_hex ??
-                            "rgba(255,255,255,0.15)",
-                        }}
-                        title={
-                          colores.get(fu.filament_id)
-                            ? `${colores.get(fu.filament_id)!.marca} · ${colores.get(fu.filament_id)!.color_nombre}`
-                            : "Filamento eliminado"
-                        }
-                      />
-                    ))}
+                    {(print.filamentos_usados ?? [])
+                      .slice(0, PUNTOS_VISIBLES)
+                      .map((fu, i) => (
+                        <span
+                          key={`${fu.filament_id}-${i}`}
+                          className="h-6 w-6 rounded-full border border-white/25"
+                          style={{
+                            backgroundColor:
+                              colores.get(fu.filament_id)?.color_hex ??
+                              "rgba(255,255,255,0.15)",
+                          }}
+                          title={
+                            colores.get(fu.filament_id)
+                              ? `${colores.get(fu.filament_id)!.marca} · ${colores.get(fu.filament_id)!.color_nombre}`
+                              : "Filamento eliminado"
+                          }
+                        />
+                      ))}
+                    {(print.filamentos_usados ?? []).length >
+                      PUNTOS_VISIBLES && (
+                      <span className="num flex h-6 w-6 items-center justify-center rounded-full border border-white/25 bg-white/[0.12] text-[10px] text-white/70">
+                        +
+                        {(print.filamentos_usados ?? []).length -
+                          PUNTOS_VISIBLES}
+                      </span>
+                    )}
                   </div>
 
                   <div className="min-w-0 flex-1">

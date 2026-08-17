@@ -2,8 +2,8 @@
 
 App web personal para calcular el costo real de cada impresión 3D, administrar
 varias impresoras con sus propios costos, gestionar el inventario de filamentos
-(hasta 4 por impresión, multi-color) y de insumos de taller (tags NFC, argollas,
-imanes, boquillas), armar proyectos que producen un mismo cálculo en cantidad y
+(multi-color, un filamento por cada color de la pieza y sin tope de colores) y de
+insumos de taller (tags NFC, argollas, imanes, boquillas), armar proyectos que producen un mismo cálculo en cantidad y
 descontar stock automáticamente al lanzar. Lo que imprimes para ti se marca como
 uso personal y se reporta aparte, al costo.
 

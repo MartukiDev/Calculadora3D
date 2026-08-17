@@ -89,7 +89,9 @@ create table if not exists public.prints (
   nombre_proyecto text not null,
   status text not null default 'borrador' check (status in ('borrador','lanzada')),
   tiempo_impresion_horas numeric(10,2) not null,
-  filamentos_usados jsonb not null default '[]', -- [{filament_id, gramos}], máx 4
+  -- [{filament_id, gramos}], una entrada por color. El tope lo pone la app
+  -- (MAX_FILAMENTOS) y es un guardarraíl, no una regla: acá no se limita.
+  filamentos_usados jsonb not null default '[]',
   costo_filamento numeric(10,2) not null default 0,
   costo_luz numeric(10,2) not null default 0,
   costo_mano_obra numeric(10,2) not null default 0,

@@ -22,9 +22,9 @@ const FEATURES = [
       "Tags NFC, argollas, imanes, boquillas. Cada insumo con su unidad, su costo y su propio umbral de aviso — 10 argollas es poco, 10 metros de cadena no.",
   },
   {
-    titulo: "Multicolor, hasta 4 filamentos",
+    titulo: "Multicolor, sin tope de colores",
     descripcion:
-      "Cada impresión puede combinar hasta cuatro colores. El costo de material se prorratea por gramo exacto de cada uno.",
+      "Cuatro colores de una AMS o dieciséis encadenadas: agrega una fila por cada uno. El costo de material se prorratea por gramo exacto de cada filamento.",
   },
   {
     titulo: "Lo que imprimes para ti, aparte",

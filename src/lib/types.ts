@@ -169,7 +169,13 @@ export const MATERIALES = [
  */
 export const UNIDADES = ["u", "g", "ml", "m", "cm", "par", "set"] as const;
 
-export const MAX_FILAMENTOS = 4;
+/**
+ * Cuántos colores admite una impresión. Ya no modela la máquina —una AMS
+ * encadenada llega a 16 slots y un cambio manual de filamento no tiene tope—,
+ * así que es solo un guardarraíl: la lista viaja en un `jsonb` y una selección
+ * desbocada rompería la fila y la UI. Súbelo si algún día estorba.
+ */
+export const MAX_FILAMENTOS = 32;
 export const MAX_INSUMOS = 8;
 export const STOCK_BAJO_GRAMOS = 50;
 

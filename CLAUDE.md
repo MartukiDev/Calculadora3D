@@ -64,9 +64,15 @@ sesión. `/` es **pública** (landing) y solo redirige a `/dashboard` si hay usu
 Todo `/dashboard/*` es `force-dynamic` (declarado en su layout): depende de la sesión
 y de datos por usuario, nunca se prerenderiza.
 
-Las constantes de dominio (`MAX_FILAMENTOS = 4`, `MAX_INSUMOS = 8`,
+Las constantes de dominio (`MAX_FILAMENTOS`, `MAX_INSUMOS = 8`,
 `STOCK_BAJO_GRAMOS = 50`, `UNIDADES`) viven en `src/lib/types.ts`, junto a los tipos
 de fila. No las hardcodees.
+
+`MAX_FILAMENTOS = 32` es un **guardarraíl, no una regla de negocio**: una impresión
+lleva los colores que lleve (una AMS encadenada da 16 slots y un cambio manual no
+tiene tope), y el número solo existe para que la lista no crezca sin control dentro
+del `jsonb`. Por eso la UI no lo anuncia — el panel dice "una fila por color" — y
+`schema.sql` tampoco lo impone. `MAX_INSUMOS` sí es un tope pensado.
 
 ### Dónde vive cada costo
 

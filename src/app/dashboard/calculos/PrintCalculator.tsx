@@ -286,6 +286,8 @@ export function PrintCalculator({
     margenPct: margenEfectivo,
   });
 
+  const gramosTotales = seleccionValida.reduce((acc, s) => acc + s.gramos, 0);
+
   const excesos = draft.seleccion
     .map((s) => {
       const f = filamentosPorId.get(s.filament_id);
@@ -510,7 +512,9 @@ export function PrintCalculator({
 
         <GlassPanel
           title="Filamentos"
-          description={`Hasta ${MAX_FILAMENTOS} por impresión (multi-color)`}
+          // El tope ya no es de la máquina, así que no se anuncia: se anuncia el
+          // criterio, que es una fila por color que use la pieza.
+          description="Una fila por color, los que use la pieza"
           actions={
             draft.seleccion.length < MAX_FILAMENTOS ? (
               <button
@@ -646,6 +650,19 @@ export function PrintCalculator({
                   />
                 );
               })}
+            </div>
+          )}
+
+          {/* Con dos colores los chips se suman de un vistazo; con doce, no.
+              El total va debajo por la misma razón que el de insumos. */}
+          {seleccionValida.length > 1 && (
+            <div className="mt-4 flex items-center justify-between text-sm">
+              <span className="text-muted">
+                Total material · {seleccionValida.length} colores
+              </span>
+              <span className="num text-white/90">
+                {formatGramos(gramosTotales)}
+              </span>
             </div>
           )}
         </GlassPanel>
