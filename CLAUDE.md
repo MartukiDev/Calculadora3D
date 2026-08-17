@@ -162,6 +162,11 @@ Cada línea de `insumos_usados` guarda además su `costo_unitario` y su
 reescriba cálculos viejos. Por eso al editar, `draftFromPrint` reconstruye las
 tarifas por hora dividiendo el monto guardado por las horas.
 
+`saveProject` sigue la misma regla, y las dos comparten `resolverInsumos`
+(`actions.ts`): convierte "qué insumo y cuánto" en líneas con el costo real de la
+base. Cualquier formulario nuevo que acepte insumos tiene que pasar por ahí, no
+leer los montos del `FormData`.
+
 ### Operaciones atómicas vía RPC
 
 - **`lanzar_impresion`** — descuenta el stock de un cálculo suelto (×1) y lo marca
@@ -225,9 +230,18 @@ utilidades:
 Acentos: `accent` (naranja, hotend) y `accent-2` (teal, filamento frío). Sobre vidrio,
 el texto no baja de `text-white/70`.
 
-Elementos firma que conviene reutilizar antes de crear otra cosa: `CostLayerStack`
-(el desglose como capas apiladas con blur creciente, imitando la impresión capa por
-capa) y `FilamentChip` (chip tintado con el `color_hex` real del material). Las
-impresoras usan el mismo lenguaje visual con su propio `color_hex`.
+Elementos firma que conviene reutilizar antes de crear otra cosa:
+
+- `CostLayerStack` — el desglose de un cálculo como capas apiladas con blur
+  creciente, imitando la impresión capa por capa.
+- `ProjectCostStack` — el desglose de un proyecto. Son **dos bloques** (una unidad
+  y el lote) y no una sola pila porque el eje acá es la multiplicación por
+  cantidad, no el apilado de componentes de costo.
+- `FilamentChip` — chip tintado con el `color_hex` real del material.
+- La barra de cobertura de `MaterialsList` — teal si el stock alcanza, naranja si
+  falta. Es el patrón para cualquier "requerido vs. disponible".
+
+Las impresoras y los proyectos usan el mismo lenguaje visual con su propio
+`color_hex`.
 
 Respeta `prefers-reduced-motion` — ya hay un override global en `globals.css`.
