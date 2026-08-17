@@ -278,7 +278,7 @@ function TabButton({
       onClick={onClick}
       className={`rounded-lg px-3 py-1.5 text-sm transition ${
         active
-          ? "bg-white/10 text-white"
+          ? "bg-accent-soft text-accent shadow-[inset_0_0_0_1px_rgba(196,245,60,0.28)]"
           : "text-muted hover:bg-white/[0.06] hover:text-white/85"
       }`}
     >
@@ -347,7 +347,7 @@ function ItemCard({
           </p>
         </div>
         {bajo && item.activo && (
-          <span className="badge border-accent/30 bg-accent-soft text-accent">
+          <span className="badge-accent">
             Stock bajo
           </span>
         )}
@@ -358,7 +358,7 @@ function ItemCard({
           <dt className="text-xs text-muted">Stock</dt>
           <dd
             className={`num mt-0.5 font-medium ${
-              bajo ? "text-accent" : "text-white/90"
+              bajo ? "font-semibold text-accent" : "text-white/90"
             }`}
           >
             {formatCantidad(item.stock, item.unidad)}

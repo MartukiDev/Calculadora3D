@@ -1,13 +1,26 @@
 @import "tailwindcss";
 
+/* "Salt and pepper" (#FFFFFF · #D4D4D4 · #B3B3B3 · #2B2B2B) es el volumen de la
+   app; el color es señalética, no decoración. Un único matiz —el verde lima de
+   alta visibilidad de un taller: chaleco reflectante, botonera de CNC— en dos
+   intensidades, más el rojo reservado a lo irreversible.
+
+   Cada píxel con matiz significa algo, y por eso no se reparte: si algo es
+   simplemente "distinto", se separa subiendo o bajando el gris. */
 @theme {
-  --color-base: #14171c;
-  --color-base-elevated: #1a1e25;
-  --color-accent: #ff7a3d;
-  --color-accent-soft: #ff7a3d1f;
-  --color-accent-2: #4fd1c5;
-  --color-ink: #f5f6f8;
-  --color-muted: #9aa3af;
+  --color-base: #2b2b2b;
+  /* La paleta no trae un paso intermedio y las superficies nativas (el popup
+     de un <select>) no aceptan overlays translúcidos: se deriva de pepper. */
+  --color-base-elevated: #3a3a3a;
+  /* Lima pleno: acción y atención. Lo que hay que mirar o tocar ahora. */
+  --color-accent: #c4f53c;
+  --color-accent-soft: #c4f53c1a;
+  /* El mismo verde bajado de intensidad: estado ya resuelto, sin acción
+     pendiente. Es un escalón del mismo matiz y no un segundo color a propósito
+     —dos matices volverían a repartir el significado. */
+  --color-accent-2: #a4c74e;
+  --color-ink: #ffffff;
+  --color-muted: #b3b3b3;
 
   --font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
@@ -23,13 +36,21 @@
     background-color: var(--color-base);
     color: var(--color-ink);
     font-family: var(--font-sans);
-    /* Grilla punteada: referencia a la cama de impresión / vista de slicer */
-    background-image: radial-gradient(
-      circle at 1px 1px,
-      rgb(255 255 255 / 0.04) 1px,
-      transparent 0
-    );
-    background-size: 24px 24px;
+    /* Dos capas: la grilla punteada (referencia a la cama de impresión / vista
+       de slicer) y, debajo, un lavado de lima al tope de la página. El lavado
+       existe para que el grafito plano tenga de dónde salir: sin él el fondo
+       es un color sólido y todo lo que flota encima pierde profundidad. */
+    background-image:
+      radial-gradient(circle at 1px 1px, rgb(255 255 255 / 0.05) 1px, transparent 0),
+      radial-gradient(
+        ellipse 120% 60% at 50% -20%,
+        rgb(196 245 60 / 0.07),
+        transparent 70%
+      );
+    background-size:
+      24px 24px,
+      100% 100%;
+    background-repeat: repeat, no-repeat;
     background-attachment: fixed;
   }
 
@@ -50,18 +71,22 @@
 
   ::selection {
     background: var(--color-accent);
-    color: #14171c;
+    color: var(--color-base);
   }
 }
 
 @layer components {
+  /* El degradado y la línea interior de arriba son lo que separa una lámina de
+     vidrio de un rectángulo gris: sin ellas el panel no tiene canto ni grosor. */
   .glass-panel {
-    @apply rounded-2xl border border-white/10 bg-white/[0.06] shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl;
+    @apply rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.09] to-white/[0.04]
+           shadow-[inset_0_1px_0_rgba(255,255,255,0.09),0_8px_32px_rgba(0,0,0,0.45)] backdrop-blur-xl;
   }
 
   /* Variante liviana: en listas largas un backdrop-filter por fila mata el scroll en mobile */
   .glass-row {
-    @apply rounded-xl border border-white/[0.08] bg-white/[0.05];
+    @apply rounded-xl border border-white/[0.08] bg-white/[0.05]
+           shadow-[inset_0_1px_0_rgba(255,255,255,0.06)];
   }
 
   .num {
@@ -95,8 +120,9 @@
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium
            transition disabled:cursor-not-allowed disabled:opacity-50
-           bg-accent text-[#14171c] shadow-[0_4px_20px_-4px_rgba(255,122,61,0.6)]
-           hover:brightness-110 active:brightness-95;
+           bg-accent font-semibold text-[#2b2b2b] shadow-[0_6px_24px_-6px_rgba(196,245,60,0.55)]
+           hover:shadow-[0_8px_28px_-6px_rgba(196,245,60,0.75)] hover:brightness-105
+           active:brightness-95;
   }
 
   .btn-ghost {
@@ -105,20 +131,33 @@
            border border-white/[0.12] bg-white/[0.05] text-white/85 hover:bg-white/10;
   }
 
+  /* El segundo y último matiz, reservado a lo irreversible. Se separa del lima
+     por matiz y por luminancia a la vez (rosado claro vs. verde brillante), que
+     es lo que lo mantiene legible con daltonismo rojo-verde. */
   .btn-danger {
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium
            transition disabled:cursor-not-allowed disabled:opacity-50
-           border border-red-400/25 bg-red-500/[0.12] text-red-200 hover:bg-red-500/20;
+           border border-rose-400/30 bg-rose-500/[0.12] text-rose-200 hover:bg-rose-500/20;
   }
 
   .badge {
     @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium;
   }
+
+  /* Badge en lima: el estado que importa. Lleva halo porque un chip pequeño en
+     un tablero denso se pierde si solo cambia de color. */
+  .badge-accent {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium
+           border-accent/40 bg-accent-soft text-accent shadow-[0_0_14px_-4px_rgba(196,245,60,0.5)];
+  }
 }
 
 /* El vidrio de baja opacidad no se lee sin blur: degradar a un sólido más denso */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  /* background-image gana sobre background-color: hay que apagar el degradado
+     del panel para que el sólido de reemplazo se vea. */
   .glass-panel {
+    background-image: none;
     background-color: rgb(255 255 255 / 0.1);
   }
 }
@@ -229,8 +268,8 @@
   }
 }
 
-/* Scrollbar discreta acorde al fondo grafito */
+/* Scrollbar discreta acorde al fondo grafito, con el matiz de la app */
 * {
-  scrollbar-color: rgb(255 255 255 / 0.15) transparent;
+  scrollbar-color: rgb(196 245 60 / 0.22) transparent;
   scrollbar-width: thin;
 }

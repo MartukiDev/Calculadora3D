@@ -23,7 +23,7 @@ create table if not exists public.printers (
   nombre text not null,
   marca text not null default '',
   modelo text not null default '',
-  color_hex text not null default '#ff7a3d',
+  color_hex text not null default '#C4F53C',
   consumo_w numeric(10,2) not null default 0,
   tarifa_mano_obra_clp_hora numeric(10,2) not null default 0,
   costo_depreciacion_clp_hora numeric(10,2) not null default 0,
@@ -63,7 +63,7 @@ create table if not exists public.inventory_items (
   -- cerrada obligaría a editar el código cada vez que aparece un insumo nuevo.
   categoria text not null default '',
   unidad text not null default 'u' check (unidad <> ''),
-  color_hex text not null default '#3ddad7',
+  color_hex text not null default '#D4D4D4',
   costo_clp_unidad numeric(10,2) not null default 0,
   stock numeric(10,2) not null default 0,
   stock_minimo numeric(10,2) not null default 0 check (stock_minimo >= 0),
@@ -140,7 +140,7 @@ create table if not exists public.projects (
   user_id uuid not null references auth.users(id) on delete cascade,
   nombre text not null,
   descripcion text,
-  color_hex text not null default '#ff7a3d',
+  color_hex text not null default '#C4F53C',
   -- Un solo cálculo por proyecto: el proyecto es un producto en cantidad, no un
   -- ensamblaje de piezas distintas. Nullable para poder crear el proyecto antes
   -- que el cálculo, y para que borrar el cálculo no se lleve el proyecto puesto.

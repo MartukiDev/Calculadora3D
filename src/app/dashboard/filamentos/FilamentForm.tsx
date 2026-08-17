@@ -16,7 +16,7 @@ export function FilamentForm({
     saveFilament,
     {},
   );
-  const [colorHex, setColorHex] = useState(filament?.color_hex ?? "#ff7a3d");
+  const [colorHex, setColorHex] = useState(filament?.color_hex ?? "#B3B3B3");
   const [material, setMaterial] = useState(() => {
     const m = filament?.material ?? "PLA";
     return MATERIALES.includes(m as (typeof MATERIALES)[number]) ? m : "Otro";
@@ -62,7 +62,7 @@ export function FilamentForm({
             className="field-input"
           >
             {MATERIALES.map((m) => (
-              <option key={m} value={m} className="bg-[#1a1e25]">
+              <option key={m} value={m} className="bg-base-elevated">
                 {m}
               </option>
             ))}

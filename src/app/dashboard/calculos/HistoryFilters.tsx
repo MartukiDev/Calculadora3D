@@ -58,7 +58,7 @@ export function HistoryFilters({
             onClick={() => push({ status: s.value })}
             className={`rounded-lg px-3 py-2 text-sm transition ${
               status === s.value
-                ? "bg-white/10 text-white"
+                ? "bg-accent-soft text-accent shadow-[inset_0_0_0_1px_rgba(196,245,60,0.28)]"
                 : "text-muted hover:bg-white/[0.06] hover:text-white/85"
             }`}
           >
@@ -93,11 +93,11 @@ export function HistoryFilters({
               onChange={(e) => push({ printer: e.target.value })}
               className="field-input !py-2"
             >
-              <option value="" className="bg-[#1a1e25]">
+              <option value="" className="bg-base-elevated">
                 Todas
               </option>
               {impresoras.map((p) => (
-                <option key={p.id} value={p.id} className="bg-[#1a1e25]">
+                <option key={p.id} value={p.id} className="bg-base-elevated">
                   {p.nombre}
                 </option>
               ))}

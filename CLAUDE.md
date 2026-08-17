@@ -247,7 +247,7 @@ comentario justifica la decisión. Sigue ese estilo.
 consumen con `useActionState`. `SubmitButton` (`src/components/ui.tsx`) ya maneja el
 estado pendiente con `useFormStatus` — no reinventes el disabled.
 
-### Diseño — glassmorphism sobre grafito
+### Diseño — grafito "salt and pepper" con un acento de alta visibilidad
 
 Los tokens viven en el bloque `@theme` de `src/app/globals.css`, no en un
 `tailwind.config`. Usa las clases de componente ya definidas en vez de repetir
@@ -258,10 +258,44 @@ utilidades:
   fila mata el scroll en mobile.
 - `.num` — obligatoria en todo monto o cifra (JetBrains Mono + `tabular-nums`); los
   números nunca van con la fuente de UI.
-- `.field-input` / `.field-input-num` / `.btn-primary` / `.btn-ghost` / `.btn-danger` / `.badge`.
+- `.field-input` / `.field-input-num` / `.btn-primary` / `.btn-ghost` / `.btn-danger` /
+  `.badge` / `.badge-accent`.
 
-Acentos: `accent` (naranja, hotend) y `accent-2` (teal, filamento frío). Sobre vidrio,
+El gris "salt and pepper" (`#FFFFFF` · `#D4D4D4` · `#B3B3B3` · `#2B2B2B`) es **el
+volumen** de la app; el color es señalética. Hay **un solo matiz**: el verde lima
+de alta visibilidad de un taller —chaleco reflectante, botonera de CNC— en dos
+intensidades:
+
+- **`accent` `#C4F53C`** — acción y atención: `.btn-primary`, la sección activa de
+  la nav, el filtro seleccionado, stock bajo, faltante de material, precio final,
+  anillos de foco.
+- **`accent-2` `#A4C74E`** — el mismo verde apagado: estado ya resuelto, sin acción
+  pendiente (lanzada, alcanza, predeterminada, IVA recaudado).
+
+`accent-2` es un escalón del mismo matiz y **no un segundo color** a propósito: dos
+matices volverían a repartir el significado. Si algo es simplemente "distinto" y no
+pide nada, se separa subiendo o bajando el gris, no agregando color. Sobre vidrio,
 el texto no baja de `text-white/70`.
+
+**El rosa-rojo es el único otro matiz** y está reservado a lo irreversible o a lo
+que salió mal: `.btn-danger`, `Alert tone="error"` y la ganancia negativa de
+reportes. Se separa del lima por matiz **y** por luminancia a la vez, que es lo que
+lo mantiene legible con daltonismo rojo-verde; si agregas un estado de error nuevo,
+no lo dejes descansando solo en el matiz.
+
+Nada de hexadecimales sueltos en las clases: el popup nativo de un `<select>` no
+acepta overlays translúcidos, y para eso existe `bg-base-elevated` — todos los
+`<option>` van con esa clase, no con el color escrito a mano.
+
+La profundidad no es decoración: `.glass-panel` lleva degradado vertical y una línea
+interior arriba (sin ellas es un rectángulo gris), el `body` tiene un lavado de lima
+al tope para que el grafito plano tenga de dónde salir, y la capa superior de
+`CostLayerStack` lleva halo porque es la única que se le cobra al cliente.
+
+Los `color_hex` de filamentos, impresoras y proyectos son **datos del usuario**,
+no de la paleta: un carrete rojo se ve rojo. Solo cambian los valores por defecto
+—`#C4F53C` donde el color es identidad (impresoras, proyectos) y un gris neutro
+donde representa material real (filamentos, insumos).
 
 Elementos firma que conviene reutilizar antes de crear otra cosa:
 
@@ -271,8 +305,9 @@ Elementos firma que conviene reutilizar antes de crear otra cosa:
   y el lote) y no una sola pila porque el eje acá es la multiplicación por
   cantidad, no el apilado de componentes de costo.
 - `FilamentChip` — chip tintado con el `color_hex` real del material.
-- La barra de cobertura de `MaterialsList` — teal si el stock alcanza, naranja si
-  falta. Es el patrón para cualquier "requerido vs. disponible".
+- La barra de cobertura de `MaterialsList` — lima apagado si el stock alcanza, lima
+  pleno con halo si falta. Es el patrón para cualquier "requerido vs. disponible":
+  lo accionable se lleva el color vivo, lo resuelto se apaga.
 
 Las impresoras y los proyectos usan el mismo lenguaje visual con su propio
 `color_hex`.

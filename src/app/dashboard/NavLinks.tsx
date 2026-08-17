@@ -37,9 +37,11 @@ export function NavLinks() {
           <Link
             key={link.href}
             href={link.href}
+            // La sección activa lleva el matiz: en una barra de nueve links
+            // grises, un gris apenas más claro no alcanza para ubicarse.
             className={`shrink-0 rounded-lg px-3 py-1.5 text-sm transition ${
               active
-                ? "bg-white/10 text-white"
+                ? "bg-accent-soft text-accent shadow-[inset_0_0_0_1px_rgba(196,245,60,0.28)]"
                 : "text-muted hover:bg-white/[0.06] hover:text-white/85"
             }`}
           >

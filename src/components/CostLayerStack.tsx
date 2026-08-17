@@ -76,9 +76,10 @@ export function CostLayerStack({
         </span>
       </div>
 
-      {/* Capa superior: más opaca, con el acento primario */}
+      {/* Capa superior: más opaca, con el acento primario. El halo la despega
+          de la pila — es la única capa que el usuario le cobra al cliente. */}
       <div
-        className={`rounded-2xl border border-accent/30 bg-accent-soft p-4 backdrop-blur-xl ${animateIn ? "animate-layer-rise" : ""}`}
+        className={`rounded-2xl border border-accent/35 bg-accent-soft p-4 shadow-[0_0_44px_-14px_rgba(196,245,60,0.55)] backdrop-blur-xl ${animateIn ? "animate-layer-rise" : ""}`}
         style={{ animationDelay: animateIn ? `${layers.length * 110}ms` : undefined }}
       >
         {/* Para uso propio la pila termina acá: no hay margen que sumar ni IVA

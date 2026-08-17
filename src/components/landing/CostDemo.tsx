@@ -6,9 +6,9 @@ import { FilamentChip } from "@/components/FilamentChip";
 import { calcularCostos, type CostBreakdown } from "@/lib/calc";
 
 const FILAMENTOS = [
-  { id: "f1", marca: "eSun", material: "PETG", color: "Negro carbón", hex: "#1c1f24", costo_clp_kg: 14990 },
-  { id: "f2", marca: "Bambu", material: "PLA", color: "Naranja hotend", hex: "#ff7a3d", costo_clp_kg: 16990 },
-  { id: "f3", marca: "Polymaker", material: "PLA", color: "Teal frío", hex: "#4fd1c5", costo_clp_kg: 15990 },
+  { id: "f1", marca: "eSun", material: "PETG", color: "Negro carbón", hex: "#141414", costo_clp_kg: 14990 },
+  { id: "f2", marca: "Bambu", material: "PLA", color: "Gris grafito", hex: "#B3B3B3", costo_clp_kg: 16990 },
+  { id: "f3", marca: "Polymaker", material: "PLA", color: "Blanco hueso", hex: "#FFFFFF", costo_clp_kg: 15990 },
 ];
 
 const USADOS = [

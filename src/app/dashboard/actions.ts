@@ -77,7 +77,7 @@ export async function savePrinter(
 
   const id = str(formData, "id");
   const nombre = str(formData, "nombre");
-  const colorHex = str(formData, "color_hex") || "#ff7a3d";
+  const colorHex = str(formData, "color_hex") || "#C4F53C";
   const consumoW = num(formData, "consumo_w");
   const manoObra = num(formData, "tarifa_mano_obra_clp_hora");
   const depreciacion = num(formData, "costo_depreciacion_clp_hora");
@@ -664,7 +664,7 @@ export async function saveProject(
 
   const id = str(formData, "id");
   const nombre = str(formData, "nombre");
-  const colorHex = str(formData, "color_hex") || "#ff7a3d";
+  const colorHex = str(formData, "color_hex") || "#C4F53C";
   const printId = str(formData, "print_id");
   const cantidad = num(formData, "cantidad", 1);
   const margenPct = num(formData, "margen_pct");

@@ -5,17 +5,17 @@ export function Hero() {
   return (
     <section className="relative overflow-hidden px-4 pt-16 pb-20 sm:px-6 sm:pt-24 sm:pb-28">
       <div
-        className="animate-drift pointer-events-none absolute -top-24 -left-32 h-96 w-96 rounded-full bg-accent/20 blur-[110px]"
+        className="animate-drift pointer-events-none absolute -top-24 -left-32 h-96 w-96 rounded-full bg-accent/18 blur-[110px]"
         aria-hidden
       />
       <div
-        className="animate-drift-slow pointer-events-none absolute top-40 -right-24 h-80 w-80 rounded-full bg-accent-2/15 blur-[110px]"
+        className="animate-drift-slow pointer-events-none absolute top-40 -right-24 h-80 w-80 rounded-full bg-accent-2/12 blur-[110px]"
         aria-hidden
       />
 
       <div className="relative mx-auto grid max-w-6xl items-center gap-14 lg:grid-cols-[1.05fr_1fr]">
         <div className="animate-panel-in">
-          <span className="badge border-accent/30 bg-accent-soft text-accent">
+          <span className="badge-accent">
             <span className="animate-pulse-glow h-1.5 w-1.5 rounded-full bg-accent" />
             Costeo de impresión 3D
           </span>

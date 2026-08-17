@@ -19,7 +19,7 @@ export function PrinterForm({
     savePrinter,
     {},
   );
-  const [colorHex, setColorHex] = useState(printer?.color_hex ?? "#ff7a3d");
+  const [colorHex, setColorHex] = useState(printer?.color_hex ?? "#C4F53C");
   const [consumoW, setConsumoW] = useState(
     printer ? String(printer.consumo_w) : "",
   );

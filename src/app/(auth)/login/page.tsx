@@ -21,7 +21,7 @@ export default async function LoginPage({
         <Link href="/reset-password" className="text-muted hover:text-white/80">
           Olvidé mi contraseña
         </Link>
-        <Link href="/signup" className="text-accent hover:brightness-110">
+        <Link href="/signup" className="text-accent transition hover:text-accent-2">
           Crear cuenta
         </Link>
       </div>

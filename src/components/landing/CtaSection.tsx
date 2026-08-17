@@ -7,7 +7,7 @@ export function CtaSection() {
       <Reveal>
         <div className="glass-panel relative overflow-hidden p-10 text-center sm:p-14">
           <div
-            className="animate-pulse-glow pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,122,61,0.16),transparent_60%)]"
+            className="animate-pulse-glow pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(196,245,60,0.14),transparent_60%)]"
             aria-hidden
           />
           <div className="relative">

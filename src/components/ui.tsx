@@ -70,11 +70,14 @@ export function Alert({
   tone?: "error" | "info" | "warn" | "success";
   children: ReactNode;
 }) {
+  // Un solo matiz en dos intensidades: `warn` pide acción y va en lima pleno,
+  // `success` ya está resuelto y va apagado. `info` no pide nada, así que se
+  // queda en gris. `error` es el único que sale del verde.
   const tones = {
-    error: "border-red-400/25 bg-red-500/10 text-red-200",
-    warn: "border-amber-400/25 bg-amber-500/10 text-amber-200",
-    info: "border-accent-2/25 bg-accent-2/10 text-accent-2",
-    success: "border-emerald-400/25 bg-emerald-500/10 text-emerald-200",
+    error: "border-rose-400/30 bg-rose-500/10 text-rose-200",
+    warn: "border-accent/35 bg-accent-soft text-accent",
+    info: "border-white/15 bg-white/[0.06] text-white/75",
+    success: "border-accent-2/30 bg-accent-2/12 text-accent-2",
   } as const;
 
   return (
@@ -87,7 +90,7 @@ export function Alert({
 /** Badge de datos servidos desde localStorage cuando Supabase no respondió. */
 export function CacheBadge() {
   return (
-    <span className="badge border-amber-400/25 bg-amber-500/10 text-amber-200">
+    <span className="badge-accent">
       Datos en caché · puede no estar actualizado
     </span>
   );

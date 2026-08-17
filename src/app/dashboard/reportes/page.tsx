@@ -161,7 +161,7 @@ export default async function ReportesPage({
                   </span>
                 </div>
 
-                <div className="rounded-2xl border border-accent/30 bg-accent-soft p-4 backdrop-blur-xl">
+                <div className="rounded-2xl border border-accent/35 bg-accent-soft p-4 shadow-[0_0_44px_-14px_rgba(196,245,60,0.55)] backdrop-blur-xl">
                   <div className="flex items-center justify-between py-1">
                     <span className="text-sm text-white/90">Costo total</span>
                     <span className="num text-base font-semibold text-white">
@@ -421,12 +421,14 @@ function Stat({
   value: string;
   tone?: "normal" | "accent" | "warn";
 }) {
+  // Una ganancia negativa es lo único que la luminancia no alcanza a
+  // diferenciar de una cifra cualquiera: va con el rojo de .btn-danger.
   const color =
     tone === "accent"
-      ? "text-accent-2"
+      ? "text-accent"
       : tone === "warn"
-        ? "text-accent"
-        : "text-white/95";
+        ? "text-red-300"
+        : "text-white/80";
 
   return (
     <div className="glass-panel px-4 py-3.5 sm:px-5 sm:py-4">

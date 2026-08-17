@@ -162,9 +162,13 @@ function StockBar({
             : `Faltan ${etiquetaFalta}`
         }
       >
+        {/* El faltante es lo accionable, así que se lleva el lima pleno y el
+            halo; lo que alcanza se apaga al verde de "ya resuelto". */}
         <div
-          className={`h-full rounded-full ${
-            alcanza ? "bg-accent-2/70" : "bg-accent/70"
+          className={`h-full rounded-full transition-[width] duration-500 ${
+            alcanza
+              ? "bg-accent-2/60"
+              : "bg-accent shadow-[0_0_10px_-1px_rgba(196,245,60,0.7)]"
           }`}
           style={{ width: `${cobertura}%` }}
         />
@@ -176,7 +180,7 @@ function StockBar({
         {alcanza ? (
           <span className="text-accent-2">Alcanza</span>
         ) : (
-          <span className="text-accent">
+          <span className="font-medium text-accent">
             Faltan <span className="num">{etiquetaFalta}</span>
           </span>
         )}

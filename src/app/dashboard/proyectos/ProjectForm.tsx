@@ -45,7 +45,7 @@ export function ProjectForm({
   const isEdit = Boolean(project);
 
   const [nombre, setNombre] = useState(project?.nombre ?? "");
-  const [colorHex, setColorHex] = useState(project?.color_hex ?? "#ff7a3d");
+  const [colorHex, setColorHex] = useState(project?.color_hex ?? "#C4F53C");
   const [printId, setPrintId] = useState(
     project?.print_id ?? printIdInicial ?? "",
   );
@@ -201,11 +201,11 @@ export function ProjectForm({
                 onChange={(e) => setPrintId(e.target.value)}
                 className="field-input"
               >
-                <option value="" className="bg-[#1a1e25]">
+                <option value="" className="bg-base-elevated">
                   Sin cálculo por ahora…
                 </option>
                 {prints.map((p) => (
-                  <option key={p.id} value={p.id} className="bg-[#1a1e25]">
+                  <option key={p.id} value={p.id} className="bg-base-elevated">
                     {p.nombre_proyecto} · {formatCLP(p.costo_total)}
                   </option>
                 ))}
@@ -291,14 +291,14 @@ export function ProjectForm({
                       className="field-input min-w-0"
                       aria-label={`Insumo ${index + 1}`}
                     >
-                      <option value="" className="bg-[#1a1e25]">
+                      <option value="" className="bg-base-elevated">
                         Seleccionar insumo…
                       </option>
                       {insumos.map((opt) => (
                         <option
                           key={opt.id}
                           value={opt.id}
-                          className="bg-[#1a1e25]"
+                          className="bg-base-elevated"
                         >
                           {opt.nombre} ({formatCantidad(opt.stock, opt.unidad)})
                         </option>
@@ -367,7 +367,7 @@ export function ProjectForm({
             step="5"
             value={margen}
             onChange={(e) => setMargen(e.target.value)}
-            className="w-full accent-[#FF7A3D]"
+            className="w-full accent-[var(--color-accent)]"
           />
           <div className="mt-1 flex justify-between text-[11px] text-muted">
             <span>0%</span>

@@ -494,7 +494,7 @@ export function PrintCalculator({
                 className="field-input"
               >
                 {impresoras.map((p) => (
-                  <option key={p.id} value={p.id} className="bg-[#1a1e25]">
+                  <option key={p.id} value={p.id} className="bg-base-elevated">
                     {p.nombre}
                     {p.marca || p.modelo
                       ? ` · ${[p.marca, p.modelo].filter(Boolean).join(" ")}`
@@ -559,14 +559,14 @@ export function PrintCalculator({
                     className="field-input min-w-0"
                     aria-label={`Filamento ${index + 1}`}
                   >
-                    <option value="" className="bg-[#1a1e25]">
+                    <option value="" className="bg-base-elevated">
                       Seleccionar filamento…
                     </option>
                     {filamentos.map((opt) => (
                       <option
                         key={opt.id}
                         value={opt.id}
-                        className="bg-[#1a1e25]"
+                        className="bg-base-elevated"
                       >
                         {opt.marca} {opt.material} · {opt.color_nombre} (
                         {formatGramos(opt.stock_gramos)})
@@ -725,14 +725,14 @@ export function PrintCalculator({
                       className="field-input min-w-0"
                       aria-label={`Insumo ${index + 1}`}
                     >
-                      <option value="" className="bg-[#1a1e25]">
+                      <option value="" className="bg-base-elevated">
                         Seleccionar insumo…
                       </option>
                       {insumos.map((opt) => (
                         <option
                           key={opt.id}
                           value={opt.id}
-                          className="bg-[#1a1e25]"
+                          className="bg-base-elevated"
                         >
                           {opt.nombre} ({formatCantidad(opt.stock, opt.unidad)})
                         </option>
@@ -827,7 +827,7 @@ export function PrintCalculator({
               type="checkbox"
               checked={draft.usoPersonal}
               onChange={(e) => update({ usoPersonal: e.target.checked })}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-[#FF7A3D]"
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
             />
             <span className="min-w-0">
               <span className="block text-sm font-medium text-white/90">
@@ -917,7 +917,7 @@ export function PrintCalculator({
                 step="5"
                 value={draft.margen}
                 onChange={(e) => update({ margen: e.target.value })}
-                className="w-full accent-[#FF7A3D]"
+                className="w-full accent-[var(--color-accent)]"
               />
               <div className="mt-1 flex justify-between text-[11px] text-muted">
                 <span>0%</span>

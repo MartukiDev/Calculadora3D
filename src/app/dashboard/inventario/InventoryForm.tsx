@@ -92,7 +92,7 @@ export function InventoryForm({
             className="field-input"
           >
             {UNIDADES.map((u) => (
-              <option key={u} value={u} className="bg-[#1a1e25]">
+              <option key={u} value={u} className="bg-base-elevated">
                 {u}
               </option>
             ))}
@@ -235,7 +235,7 @@ function Check({
         checked={checked}
         defaultChecked={defaultChecked}
         onChange={onChange ? (e) => onChange(e.target.checked) : undefined}
-        className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[#FF7A3D]"
+        className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[var(--color-accent)]"
       />
       <span className="leading-tight">
         <span className="text-sm text-white/85">{label}</span>

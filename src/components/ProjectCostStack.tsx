@@ -55,7 +55,7 @@ export function ProjectCostStack({
       </div>
 
       {/* Capa superior: más opaca, con el acento primario */}
-      <div className="rounded-2xl border border-accent/30 bg-accent-soft p-4 backdrop-blur-xl">
+      <div className="rounded-2xl border border-accent/35 bg-accent-soft p-4 shadow-[0_0_44px_-14px_rgba(196,245,60,0.55)] backdrop-blur-xl">
         <p className="mb-2 text-xs tracking-wide text-white/60 uppercase">
           Lote de {breakdown.cantidad}
         </p>
