@@ -27,9 +27,9 @@ export function Hero() {
           </h1>
 
           <p className="mt-6 max-w-lg text-base leading-relaxed text-muted sm:text-lg">
-            Filamento, luz, mano de obra, depreciación y desperdicio — tu
-            costo real, capa por capa, calculado en segundos y guardado junto
-            a tu inventario.
+            Filamento, luz, mano de obra, depreciación e insumos — tu costo
+            real, capa por capa, calculado en segundos. Y cuando el pedido son
+            veinte unidades, el precio del lote sale solo.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-4">

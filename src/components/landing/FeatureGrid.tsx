@@ -7,14 +7,24 @@ const FEATURES = [
       "Registra cuantas máquinas quieras con su propio consumo, mano de obra, depreciación y desperdicio. Eliges una y el cálculo se precarga solo.",
   },
   {
+    titulo: "Proyectos: un producto en cantidad",
+    descripcion:
+      "Toma un cálculo, dile cuántas unidades vas a producir y súmale lo que lleva el armado. Te devuelve el costo de una y el del lote completo.",
+  },
+  {
+    titulo: "La lista de materiales, ya cruzada",
+    descripcion:
+      "Cuánto filamento y cuántos insumos necesita el lote entero, comparado contra tu stock. Sabes qué comprar antes de encender la impresora.",
+  },
+  {
+    titulo: "Inventario más allá del filamento",
+    descripcion:
+      "Tags NFC, argollas, imanes, boquillas. Cada insumo con su unidad, su costo y su propio umbral de aviso — 10 argollas es poco, 10 metros de cadena no.",
+  },
+  {
     titulo: "Multicolor, hasta 4 filamentos",
     descripcion:
       "Cada impresión puede combinar hasta cuatro colores. El costo de material se prorratea por gramo exacto de cada uno.",
-  },
-  {
-    titulo: "Borradores con autoguardado",
-    descripcion:
-      "Si cierras la pestaña a mitad de un cálculo, lo recuperas donde lo dejaste — se guarda solo en tu navegador.",
   },
   {
     titulo: "Historial con filtros",
@@ -24,17 +34,22 @@ const FEATURES = [
   {
     titulo: "Alertas de stock bajo",
     descripcion:
-      "Cuando un filamento cae bajo el umbral, aparece marcado en tu panel antes de que te quedes a mitad de una impresión.",
+      "Cuando un filamento o un insumo cae bajo su umbral, aparece marcado en tu panel antes de que te quedes a mitad de una producción.",
+  },
+  {
+    titulo: "Borradores con autoguardado",
+    descripcion:
+      "Si cierras la pestaña a mitad de un cálculo, lo recuperas donde lo dejaste — se guarda solo en tu navegador.",
+  },
+  {
+    titulo: "Descuento de stock atómico",
+    descripcion:
+      "Al lanzar, los gramos de cada filamento y las cantidades de cada insumo se descuentan en una sola operación — sin dejar el inventario a medias.",
   },
   {
     titulo: "Datos aislados por usuario",
     descripcion:
       "Row Level Security en Postgres: nadie más ve tus tarifas, tu inventario ni tus precios, ni tú los de otro usuario.",
-  },
-  {
-    titulo: "Lanzar impresión, atómico",
-    descripcion:
-      "Al lanzar, el stock de cada filamento involucrado se descuenta en una sola operación — sin dejar el inventario a medias.",
   },
 ] as const;
 

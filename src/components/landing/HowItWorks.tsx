@@ -11,23 +11,30 @@ const PASOS = [
   },
   {
     numero: "02",
-    titulo: "Registra tu inventario de filamentos",
+    titulo: "Registra tu inventario",
     descripcion:
-      "Marca, material, color y costo por kilo. La calculadora descuenta el stock real cuando lanzas una impresión — y te avisa cuando un color se está por acabar.",
+      "Filamentos con marca, material, color y costo por kilo. Y todo lo que no es filamento —tags NFC, argollas, imanes— con su propia unidad y su umbral de aviso.",
     icon: SpoolIcon,
   },
   {
     numero: "03",
     titulo: "Arma el cálculo, capa por capa",
     descripcion:
-      "Eliges la impresora y sus costos se precargan solos. Sumas tiempo y hasta 4 filamentos para piezas multicolor, y el desglose se construye en tiempo real, sin recargar nada.",
+      "Eliges la impresora y sus costos se precargan solos. Sumas tiempo, hasta 4 filamentos para piezas multicolor y los insumos que lleve la pieza; el desglose se construye en tiempo real.",
     icon: LayersIcon,
   },
   {
     numero: "04",
+    titulo: "Conviértelo en un proyecto",
+    descripcion:
+      "Dile cuántas unidades vas a producir y súmale lo que lleva el armado: pegamento, caja, manual. Ves el costo de una unidad, el del lote y la lista de materiales cruzada contra tu stock.",
+    icon: BoxesIcon,
+  },
+  {
+    numero: "05",
     titulo: "Ajusta el margen y lanza",
     descripcion:
-      "Un slider de 0% a 500% de margen y el IVA se aplican al final para el precio de venta sugerido. Al lanzar la impresión, el stock de cada filamento se descuenta solo.",
+      "Un slider de 0% a 500% de margen y el IVA dan el precio de venta sugerido. Al lanzar, el filamento y los insumos de todas las unidades se descuentan en una sola operación.",
     icon: SparkIcon,
   },
 ] as const;
@@ -40,17 +47,28 @@ export function HowItWorks() {
           Cómo funciona
         </p>
         <h2 className="mt-3 font-display text-3xl font-semibold text-white/95 sm:text-4xl">
-          De la tarifa eléctrica al precio final, en cuatro pasos.
+          De la tarifa eléctrica al precio final, en cinco pasos.
         </h2>
         <p className="mt-4 text-base text-muted">
           Nada de hojas de cálculo sueltas. La calculadora conecta tu
-          configuración, tu inventario y cada impresión en un solo flujo.
+          configuración, tu inventario, cada impresión y cada pedido en un solo
+          flujo.
         </p>
       </Reveal>
 
       <div className="mt-12 grid gap-5 lg:grid-cols-2">
         {PASOS.map((paso, i) => (
-          <Reveal key={paso.numero} delay={i * 90}>
+          // Con un número impar de pasos el último quedaría solo a media fila:
+          // que ocupe el ancho completo lo cierra como culminación del flujo.
+          <Reveal
+            key={paso.numero}
+            delay={i * 90}
+            className={
+              i === PASOS.length - 1 && PASOS.length % 2 === 1
+                ? "lg:col-span-2"
+                : ""
+            }
+          >
             <GlassPanel className="h-full">
               <div className="flex items-start gap-4">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-accent/30 bg-accent-soft text-accent">
@@ -119,6 +137,16 @@ function LayersIcon() {
       <path d="m12 3 8 4.5-8 4.5-8-4.5L12 3Z" />
       <path d="m4 12 8 4.5 8-4.5" />
       <path d="m4 16.5 8 4.5 8-4.5" />
+    </svg>
+  );
+}
+
+function BoxesIcon() {
+  return (
+    <svg {...iconProps()}>
+      <rect x="3" y="13" width="8" height="8" rx="1.2" />
+      <rect x="13" y="13" width="8" height="8" rx="1.2" />
+      <rect x="8" y="3" width="8" height="8" rx="1.2" />
     </svg>
   );
 }
